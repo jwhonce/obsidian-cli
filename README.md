@@ -281,3 +281,6 @@ make
 # Run tests
 pytest tests/
 ```
+## Development Status
+
+This project is now version controlled with Git. All development history is preserved and the project follows semantic versioning.
