@@ -114,7 +114,7 @@ async def serve_mcp(config) -> None:
 
         init_options = InitializationOptions(
             server_name="obsidian-vault",
-            server_version="0.1.8",
+            server_version="0.1.10",
             capabilities=ServerCapabilities(tools={"enabled": True}),
         )
         await server.run(read_stream, write_stream, init_options)
