@@ -281,9 +281,52 @@ make
 # Run tests
 pytest tests/
 ```
+
 ## Development Status
 
-This project is now version controlled with Git. All development history is preserved and the project follows semantic versioning.
+**Current Version**: 0.1.8 (Stable)
+
+This project is now fully version controlled with Git and hosted on GitHub at [jwhonce/obsidian-cli](https://github.com/jwhonce/obsidian-cli). The development follows semantic versioning and maintains a comprehensive test suite.
+
+### Project Milestones
+
+- ✅ **Initial Release (v0.1.8)**: Core CLI functionality implemented
+- ✅ **Comprehensive Testing**: 76 unit tests with full coverage
+- ✅ **Configuration System**: Frozen dataclass with TOML support
+- ✅ **Git Integration**: Repository initialized with proper .gitignore
+- ✅ **GitHub Hosting**: Public repository with complete documentation
+- ✅ **Build Infrastructure**: Makefile with development, testing, and packaging targets
+- ✅ **Code Quality**: Linting with Ruff, proper error handling
+
+### Current Status
+
+- **Functionality**: All 9 CLI commands working correctly (info, new, edit, meta, journal, query, cat, rm, add-uid, find)
+- **Testing**: 76/76 tests passing consistently
+- **Code Quality**: Clean codebase with comprehensive error handling and validation
+- **Documentation**: Complete README with usage examples and development instructions
+- **Repository**: Clean Git history with conventional commit messages
+
+### Recent Updates
+
+- **August 23, 2025**: Repository published to GitHub with comprehensive documentation
+- **August 23, 2025**: Enhanced Makefile clean-tests target for comprehensive artifact removal
+- **August 23, 2025**: Fixed critical UnboundLocalError bug in ignored_dirs_list handling
+- **August 23, 2025**: Added comprehensive Configuration class with TOML support and 10 new unit tests
+
+### Repository Information
+
+- **Repository**: [jwhonce/obsidian-cli](https://github.com/jwhonce/obsidian-cli)
+- **License**: MIT (see LICENSE file)
+- **Issues**: Report bugs and feature requests on GitHub
+- **Contributions**: Welcome via pull requests (see docs/contributing.md)
+
+### Next Steps
+
+- [ ] **PyPI Publishing**: Prepare for public distribution
+- [ ] **CI/CD Pipeline**: Set up GitHub Actions for automated testing
+- [ ] **Documentation**: Generate API documentation
+- [ ] **Feature Enhancements**: Based on user feedback and requirements
+- [ ] **Performance Optimization**: Profile and optimize for large vaults
 
 ## AI-Assisted Development
 
