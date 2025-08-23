@@ -8,7 +8,7 @@
 #  - test: Run tests
 #  - all: Build and install package in development mode
 
-.PHONY: all build clean clean-tests coverage dev docs docs-serve format help install install-deps lint outdated publish release ruff test unittest venv
+.PHONY: all build clean clean-tests coverage dev docs docs-serve format help install install-deps lint outdated publish release test unittest venv
 
 # Default target
 all: clean build dev
@@ -29,8 +29,7 @@ help:
 	@echo "  unittest:    Run only unit tests"
 	@echo "  coverage:    Generate test coverage report"
 	@echo "  lint:        Check code style with Ruff"
-	@echo "  format:      Format code using Ruff"
-	@echo "  ruff:        Format and lint code using Ruff (recommended)"
+	@echo "  format:      Format and lint code using Ruff"
 	@echo "  docs:        Generate documentation using MkDocs"
 	@echo "  docs-serve:  Serve documentation locally"
 	@echo "  outdated:    Check for outdated dependencies"
@@ -135,16 +134,8 @@ lint: venv
 		ruff check src/ tests/
 	@echo "Lint check completed."
 
-# Format the code with Ruff
+# Format and lint the code with Ruff
 format: venv
-	@echo "Formatting the code with Ruff..."
-	@. venv/bin/activate && \
-		pip install ruff && \
-		ruff format src/ tests/
-	@echo "Ruff formatting completed."
-
-# Format and lint the code with Ruff (recommended)
-ruff: venv
 	@echo "Formatting and linting the code with Ruff..."
 	@. venv/bin/activate && \
 		pip install ruff && \
@@ -177,7 +168,7 @@ outdated: venv
 	@echo "Dependency check completed."
 
 # Complete release workflow (requires VERSION argument)
-release: test ruff docs clean build publish
+release: test format docs clean build publish
 	@echo "Release $(VERSION) completed!"
 	@echo "Remember to:"
 	@echo "- Create a git tag: git tag -a v$(VERSION) -m 'Release $(VERSION)'"
