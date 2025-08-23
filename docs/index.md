@@ -24,6 +24,7 @@ obsidian-cli is a Python package that provides a set of command-line tools to in
 - Display information about the vault
 - Configuration via environment variables and configuration files
 - Force options for advanced operations and automation
+- MCP (Model Context Protocol) server for AI assistant integration
 
 ## Quick Start
 
@@ -45,6 +46,9 @@ obsidian-cli edit "My New Note"
 
 # Query for notes with a specific tag
 obsidian-cli query tags --contains "project"
+
+# Start MCP server for AI assistant integration
+obsidian-cli serve
 ```
 
 ## Project Status

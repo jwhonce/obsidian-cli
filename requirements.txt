@@ -4,3 +4,4 @@ typer>=0.16.0
 rich>=13.0.0  # Optional dependency for better CLI output
 python-frontmatter>=1.0.0  # For parsing and manipulating YAML frontmatter in Markdown files
 mdutils>=1.5.0  # For enhanced markdown file creation
+mcp>=1.0.0  # Model Context Protocol for MCP server functionality

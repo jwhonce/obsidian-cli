@@ -35,6 +35,15 @@ pip install -r requirements.txt
 pip install -e .
 ```
 
+## Features
+
+- **Vault operations**: Create, edit, find, and remove notes
+- **Frontmatter management**: Query and update metadata across your vault
+- **Journal integration**: Quick access to daily notes with template support
+- **Flexible configuration**: TOML config files with environment variable support
+- **Cross-platform**: Works on macOS, Linux, and Windows
+- **AI Integration**: MCP (Model Context Protocol) server for AI assistant compatibility
+
 ## Usage
 
 After installation, you can use the CLI in the following ways:
@@ -109,6 +118,10 @@ obsidian-cli query priority --missing
 obsidian-cli query tags --exists --count
 obsidian-cli query tags --contains "project" --format json
 obsidian-cli query status --exists --format full
+
+# Start an MCP server for AI assistant integration
+obsidian-cli serve --vault /path/to/vault
+# The server runs until interrupted with Ctrl+C
 ```
 
 Once fully installed, you can also use the command directly:
@@ -131,6 +144,7 @@ obsidian-cli find "Meeting Notes"
 obsidian-cli add-uid "My Note.md"
 obsidian-cli rm "Unwanted Note.md"
 obsidian-cli rm "Unwanted Note.md" --force
+obsidian-cli serve  # Start MCP server
 ```
 
 ## Options
@@ -199,6 +213,44 @@ journal_template = "Calendar/{year}/{month:02d}/{year}-{month:02d}-{day:02d}"
 
 Command line arguments take precedence over environment variables, which take precedence over configuration file settings.
 
+## MCP (Model Context Protocol) Integration
+
+Obsidian CLI includes a built-in MCP server that exposes vault operations as tools for AI assistants. This allows AI assistants that support MCP to directly interact with your Obsidian vault.
+
+### Starting the MCP Server
+
+```bash
+# Start the MCP server with default configuration
+obsidian-cli serve
+
+# Start with a specific vault
+obsidian-cli serve --vault /path/to/vault
+
+# Start with verbose logging
+obsidian-cli serve --verbose
+```
+
+The server communicates over stdio using the MCP protocol and will run until interrupted with Ctrl+C.
+
+### Available MCP Tools
+
+The MCP server exposes the following tools to AI assistants:
+
+- **create_note**: Create new notes in the vault
+- **find_notes**: Search for notes by name or title
+- **get_note_content**: Retrieve note content with optional frontmatter
+- **get_vault_info**: Get vault statistics and configuration information
+
+### Using with AI Assistants
+
+To use the MCP server with an AI assistant:
+
+1. Start the server: `obsidian-cli serve --vault /path/to/vault`
+2. Configure your AI assistant to connect to the MCP server via stdio
+3. The assistant can now use the exposed tools to interact with your vault
+
+This enables AI assistants to help with note creation, content retrieval, vault organization, and information lookup directly within your Obsidian workflow.
+
 ## Dependencies
 
 This project uses:
@@ -209,6 +261,7 @@ This project uses:
 - [tomllib](https://docs.python.org/3/library/tomllib.html) - Built-in Python library for parsing TOML configuration files (Python 3.11+)
 - [UUID](https://docs.python.org/3/library/uuid.html) - Standard library module for generating unique IDs
 - [MDUtils](https://github.com/didix21/mdutils) - For markdown file creation and formatting
+- [MCP](https://github.com/modelcontextprotocol/python-sdk) - Model Context Protocol for AI assistant integration
 
 ## Development
 

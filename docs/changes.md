@@ -2,6 +2,21 @@
 
 This document lists the significant recent changes to obsidian-cli.
 
+## Version 0.1.9
+
+### Added
+
+- **MCP (Model Context Protocol) server**: New `serve` command that starts an MCP server for AI assistant integration
+- MCP server exposes vault operations as standardized tools for AI assistants
+- Available MCP tools: create_note, find_notes, get_note_content, get_vault_info
+- Server runs over stdio using the MCP protocol until interrupted
+
+### Changed
+
+- Moved `serve` command to alphabetical position with other CLI commands in the source code
+- Updated documentation to include comprehensive MCP server information
+- Enhanced command reference with detailed serve command documentation
+
 ## Version 0.1.7
 
 ### Changed

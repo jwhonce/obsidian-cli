@@ -8,7 +8,7 @@
 #  - test: Run tests
 #  - all: Build and install package in development mode
 
-.PHONY: all build clean clean-tests coverage dev docs docs-serve format help install install-deps lint outdated publish release test unittest venv
+.PHONY: all build clean clean-tests coverage dev docs docs-serve format help install install-deps lint outdated publish release serve test unittest venv
 
 # Default target
 all: clean build dev
@@ -30,6 +30,7 @@ help:
 	@echo "  coverage:    Generate test coverage report"
 	@echo "  lint:        Check code style with Ruff"
 	@echo "  format:      Format and lint code using Ruff"
+	@echo "  serve:       Start MCP server for development testing"
 	@echo "  docs:        Generate documentation using MkDocs"
 	@echo "  docs-serve:  Serve documentation locally"
 	@echo "  outdated:    Check for outdated dependencies"
@@ -142,6 +143,16 @@ format: venv
 		ruff format src/ tests/ && \
 		ruff check --fix src/ tests/
 	@echo "Ruff formatting and linting completed."
+
+# Start MCP server for development testing
+serve: venv
+	@echo "Starting MCP server for development testing..."
+	@echo "Make sure to set OBSIDIAN_VAULT environment variable or use --vault option"
+	@echo "Press Ctrl+C to stop the server"
+	@. venv/bin/activate && \
+		pip install mcp && \
+		python -m obsidian_cli.main serve --verbose
+	@echo "MCP server stopped."
 
 # Generate documentation
 docs: venv

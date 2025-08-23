@@ -146,3 +146,42 @@ obsidian-cli rm PAGE_OR_FILE [--force]
 Options:
 
 - `--force, -f`: Skip confirmation prompt and delete immediately
+
+### serve
+
+Start an MCP (Model Context Protocol) server for the vault.
+
+```bash
+obsidian-cli serve
+```
+
+The serve command starts an MCP server that exposes vault operations as tools that can be used by AI assistants and other MCP clients. The server communicates over stdio using the MCP protocol.
+
+Features:
+
+- Exposes vault operations as standardized MCP tools
+- Enables AI assistants to interact directly with your Obsidian vault
+- Supports note creation, content retrieval, and vault information queries
+- Runs indefinitely until interrupted (Ctrl+C)
+
+Available MCP Tools:
+
+- `create_note`: Create new notes in the vault with frontmatter
+- `find_notes`: Search for notes by name or title
+- `get_note_content`: Retrieve note content with optional frontmatter
+- `get_vault_info`: Get vault statistics and configuration information
+
+Example usage:
+
+```bash
+# Start MCP server with vault from config
+obsidian-cli serve
+
+# Start with specific vault path
+obsidian-cli --vault /path/to/vault serve
+
+# Start with verbose logging
+obsidian-cli --verbose serve
+```
+
+The server will use the configured vault path and other settings from your configuration file or command-line options.

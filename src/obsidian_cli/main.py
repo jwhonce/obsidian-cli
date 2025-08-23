@@ -43,6 +43,7 @@ Commands:
     new         Create a new file in the vault
     query       Query frontmatter across all files
     rm          Remove a file from the vault
+    serve       Start an MCP (Model Context Protocol) server
 
 Configuration:
     The tool can be configured using an obsidian-cli.toml file which should contain:
@@ -77,13 +78,14 @@ Configuration:
     - {weekday_abbr}: Abbreviated weekday (e.g., Mon)
 
 Author: Jhon Honce / Copilot enablement
-Version: 0.1.8
+Version: 0.1.9
 License: Apache License 2.0
 """
 
 import os
 import sys
 import tomllib
+from asyncio import CancelledError
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -104,7 +106,7 @@ except Exception:
     try:
         from . import __version__
     except Exception:
-        __version__ = "0.1.8"  # Fallback version
+        __version__ = "0.1.9"  # Fallback version
 
 # Initialize Typer app
 cli = typer.Typer(
@@ -284,7 +286,7 @@ def main(
         if vault_config:
             vault = Path(os.path.expanduser(vault_config))
 
-    # Vault is required
+    # Vault is required for all commands
     if vault is None:
         typer.secho(
             (
@@ -820,6 +822,76 @@ def rm(
         typer.echo(f"File removed: {filename}") if state.verbose else None
     except Exception as e:
         raise typer.Exit(code=1) from e
+
+
+@cli.command()
+def serve(ctx: typer.Context) -> None:
+    """Start an MCP (Model Context Protocol) server for the vault."""
+
+    # This command starts an MCP server that exposes vault operations as tools
+    # that can be used by AI assistants and other MCP clients. The server
+    # communicates over stdio using the MCP protocol.
+    #
+    # Example usage:
+    #     obsidian-cli --vault /path/to/vault serve
+    #
+    # The server will run indefinitely until interrupted (Ctrl+C).
+
+    state: State = ctx.obj
+
+    try:
+        import asyncio
+
+        from .mcp_server import serve_mcp
+    except ImportError as e:
+        typer.secho(
+            (
+                f"Error: MCP dependencies not installed. "
+                f"Please install with: pip install mcp\n"
+                f"Details: {e}"
+            ),
+            err=True,
+            color=True,
+            fg="red",
+        )
+        raise typer.Exit(1) from e
+
+    if state.verbose:
+        typer.echo(f"Starting MCP server for vault: {state.vault}")
+        typer.echo("Server will run until interrupted (Ctrl+C)")
+
+    # Set up signal handling to suppress stack traces
+    import signal
+    import sys
+
+    def signal_handler(signum, frame):
+        if state.verbose:
+            typer.echo("\nMCP server stopped.")
+        sys.exit(0)
+
+    signal.signal(signal.SIGINT, signal_handler)
+    signal.signal(signal.SIGTERM, signal_handler)
+
+    try:
+        # Run the MCP server
+        asyncio.run(serve_mcp(state))
+    except (KeyboardInterrupt, CancelledError):
+        if state.verbose:
+            typer.echo("\nMCP server stopped.")
+        # Ensure output is flushed before exiting
+        import sys
+
+        sys.stdout.flush()
+        sys.stderr.flush()
+        # Return without raising to prevent any stack trace
+        return
+    except Exception as e:
+        import traceback
+
+        typer.secho(f"Error starting MCP server: {e}", err=True, color=True, fg="red")
+        if state.verbose:
+            typer.echo(f"Traceback: {traceback.format_exc()}", err=True)
+        raise typer.Exit(1) from e
 
 
 # Helper functions (alphabetical order)

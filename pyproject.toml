@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "obsidian-cli"
-version = "0.1.8"
+version = "0.1.9"
 description = "CLI tool for interacting with Obsidian"
 readme = "README.md"
 authors = [{ name = "Obsidian CLI Team", email = "jwhonce@gmail.com" }]
@@ -24,7 +24,13 @@ classifiers = [
     "Topic :: Utilities",
 ]
 keywords = ["obsidian", "cli", "markdown", "notes", "knowledge-management"]
-dependencies = ["typer>=0.16.0", "rich>=13.0.0", "python-frontmatter>=1.0.0", "mdutils>=1.5.0"]
+dependencies = [
+    "typer>=0.16.0",
+    "rich>=13.0.0",
+    "python-frontmatter>=1.0.0",
+    "mdutils>=1.5.0",
+    "mcp>=1.0.0",
+]
 
 [project.urls]
 Homepage      = "https://github.com/jwhonce/obsidian-cli"
