@@ -1,0 +1,97 @@
+[build-system]
+requires      = ["setuptools>=42", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "obsidian-cli"
+version = "0.1.8"
+description = "CLI tool for interacting with Obsidian"
+readme = "README.md"
+authors = [{ name = "Obsidian CLI Team", email = "jwhonce@gmail.com" }]
+license = "Apache-2.0"
+requires-python = ">=3.11"
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: End Users/Desktop",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.12.6",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.13.5",
+    "Programming Language :: Python :: 3.13.6",
+    "Topic :: Utilities",
+]
+keywords = ["obsidian", "cli", "markdown", "notes", "knowledge-management"]
+dependencies = ["typer>=0.16.0", "rich>=13.0.0", "python-frontmatter>=1.0.0", "mdutils>=1.5.0"]
+
+[project.urls]
+Homepage      = "https://github.com/jwhonce/obsidian-cli"
+Issues        = "https://github.com/jwhonce/obsidian-cli/issues"
+Documentation = "https://github.com/jwhonce/obsidian-cli/tree/main/docs"
+
+[project.scripts]
+obsidian-cli = "obsidian_cli.main:cli"
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+# Ruff configuration
+line-length    = 100
+target-version = "py311"
+
+# Exclude a variety of commonly ignored directories.
+exclude = [
+    "__pypackages__",
+    "_build",
+    ".bzr",
+    ".coverage",
+    ".direnv",
+    ".DS_Store",
+    ".eggs",
+    ".git-rewrite",
+    ".git",
+    ".hg",
+    ".mypy_cache",
+    ".nox",
+    ".pants.d",
+    ".pytype",
+    ".ruff_cache",
+    ".svn",
+    ".tox",
+    ".venv",
+    ".vscode-server",
+    ".vscode-test",
+    ".vscode",
+    "buck-out",
+    "build",
+    "dist",
+    "node_modules",
+    "venv",
+]
+
+[tool.ruff.lint]
+# Enable flake8-bugbear (`B`) and isort (`I`) rules.
+select = ["E", "F", "B", "I"]
+ignore = []
+
+[tool.ruff.format]
+# Use double quotes for strings.
+quote-style = "double"
+
+# Indent with spaces, rather than tabs.
+indent-style = "space"
+
+# Respect line breaks.
+line-ending = "auto"
+
+[tool.ruff.lint.flake8-builtins]
+strict-checking = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

@@ -1,0 +1,42 @@
+# Example obsidian-cli configuration file
+# Copy to ./obsidian-cli.toml or ~/.config/obsidian-cli/config.toml
+
+vault               = "~/Documents/Obsidian/MyVault"
+editor              = "vim"
+verbose             = false
+ident_key           = "uid"
+ignored_directories = ["Assets/", ".obsidian/", ".git/", "Templates/"]
+
+# Journal template examples:
+
+# The journal path is configurable via the journal_template setting.
+# (default: 'Calendar/{year}/{month:02d}/{year}-{month:02d}-{day:02d}')
+#
+# Available template variables:
+# - {year}: 4-digit year (e.g., 2025)
+# - {month}: Month number (1-12)
+# - {month:02d}: Zero-padded month (01-12)
+# - {day}: Day number (1-31)
+# - {day:02d}: Zero-padded day (01-31)
+# - {month_name}: Full month name (e.g., January)
+# - {month_abbr}: Abbreviated month (e.g., Jan)
+# - {weekday}: Full weekday name (e.g., Monday)
+# - {weekday_abbr}: Abbreviated weekday (e.g., Mon)
+journal_template = "Calendar/{year}/{month:02d}/{year}-{month:02d}-{day:02d}"
+
+# Alternative templates you can use:
+
+# Flat daily notes structure
+# journal_template = "Daily Notes/{year}-{month:02d}-{day:02d}"
+
+# Weekly organization
+# journal_template = "Journal/{year}/Week-{month:02d}/{weekday}/{year}-{month:02d}-{day:02d}"
+
+# Month-based organization
+# journal_template = "Journal/{year}/{month_name}/{day:02d} - {weekday}"
+
+# Simple flat structure
+# journal_template = "Journal/{year}-{month:02d}-{day:02d}"
+
+# Include weekday in filename
+# journal_template = "Daily/{year}/{month_abbr}/{day:02d}-{weekday_abbr}"
