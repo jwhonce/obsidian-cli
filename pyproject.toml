@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "obsidian-cli"
-version = "0.1.10"
+version = "0.1.11"
 description = "CLI tool for interacting with Obsidian vaults, featuring AI assistant integration via MCP server"
 readme = "README.md"
 authors = [{ name = "Obsidian CLI Team", email = "jwhonce@gmail.com" }]

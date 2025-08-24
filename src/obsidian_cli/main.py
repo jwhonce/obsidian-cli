@@ -78,7 +78,7 @@ Configuration:
     - {weekday_abbr}: Abbreviated weekday (e.g., Mon)
 
 Author: Jhon Honce / Copilot enablement
-Version: 0.1.10
+Version: 0.1.11
 License: Apache License 2.0
 """
 
@@ -106,7 +106,7 @@ except Exception:
     try:
         from . import __version__
     except Exception:
-        __version__ = "0.1.10"  # Fallback version
+        __version__ = "0.1.11"  # Fallback version
 
 # Initialize Typer app
 cli = typer.Typer(
