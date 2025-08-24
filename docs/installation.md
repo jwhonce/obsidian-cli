@@ -11,10 +11,30 @@
 The recommended way to install obsidian-cli is through PyPI:
 
 ```bash
+# Standard installation
 pip install obsidian-cli
+
+# Installation with MCP support for AI assistant integration
+pip install obsidian-cli[mcp]
 ```
 
-This will install the latest stable version of the package and all its dependencies.
+The `[mcp]` extra installs additional dependencies required for the MCP (Model Context Protocol) server functionality.
+
+### Installation Options
+
+- **Standard**: `pip install obsidian-cli` - Core CLI functionality only
+- **Full with MCP**: `pip install obsidian-cli[mcp]` - Includes MCP server for AI assistant integration
+- **Development**: `pip install obsidian-cli[dev]` - Includes development dependencies for contributing
+
+### MCP Dependencies
+
+If you installed the standard version and later want to add MCP support:
+
+```bash
+pip install mcp>=1.0.0
+```
+
+This will install the required Model Context Protocol dependencies for AI assistant integration.
 
 ## Installing from Source
 
@@ -41,8 +61,29 @@ pip install -e .
 After installation, you can verify that the tool was installed correctly:
 
 ```bash
+# Check version
 obsidian-cli --version
+
+# Verify core functionality
+obsidian-cli --help
+
+# Test MCP server availability (if MCP dependencies are installed)
+obsidian-cli serve --help
 ```
+
+### MCP Installation Verification
+
+To verify that MCP dependencies are properly installed:
+
+```bash
+# Test MCP server startup (will show help if dependencies are missing)
+obsidian-cli --vault /path/to/test/vault serve --help
+
+# Check if MCP module is available
+python -c "import mcp; print('MCP dependencies installed successfully')"
+```
+
+If MCP dependencies are missing, you'll see an error message with installation instructions.
 
 This should display the current version of the tool.
 

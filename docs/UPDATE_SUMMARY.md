@@ -1,6 +1,23 @@
 # Obsidian CLI - Documentation Update (August 2025)
 
-The documentation for the Obsidian CLI project has been updated to reflect version 0.1.3. The following changes have been made:
+The documentation for the Obsidian CLI project has been updated to reflect the latest version with comprehensive MCP (Model Context Protocol) integration. The following major changes have been made:
+
+## Major New Features
+
+### MCP (Model Context Protocol) Integration
+
+- **New MCP Server**: Production-ready MCP server for AI assistant integration
+- **Four Core Tools**: create_note, find_notes, get_note_content, and get_vault_info
+- **AI Assistant Compatibility**: Works with Claude Desktop and other MCP-compatible systems
+- **Comprehensive Testing**: 81% test coverage for MCP components with 22 comprehensive tests
+- **Security & Performance**: Local-only operation with robust error handling
+
+### Enhanced Documentation
+
+- **New MCP Integration Guide**: Comprehensive 400+ line documentation covering setup, configuration, and advanced usage
+- **Updated Installation Guide**: MCP-specific installation options and verification steps
+- **Enhanced Command Reference**: Detailed serve command documentation with cross-references
+- **Updated Main Documentation**: README and index pages reflect new MCP capabilities
 
 ## Build System Changes
 

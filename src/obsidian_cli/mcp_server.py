@@ -8,11 +8,18 @@ AI assistants and other MCP clients.
 import logging
 from pathlib import Path
 
+import typer
+
 logger = logging.getLogger(__name__)
 
 
-async def serve_mcp(config) -> None:
-    """Start the MCP server with the given configuration."""
+async def serve_mcp(ctx: typer.Context, state) -> None:
+    """Start the MCP server with the given configuration.
+
+    Args:
+        ctx: Typer context for accessing CLI functionality
+        state: State object containing vault configuration
+    """
     try:
         from mcp.server import Server
         from mcp.server.stdio import stdio_server
@@ -94,13 +101,13 @@ async def serve_mcp(config) -> None:
         """Handle tool calls"""
         try:
             if name == "create_note":
-                return await handle_create_note(config, arguments)
+                return await handle_create_note(ctx, state, arguments)
             elif name == "find_notes":
-                return await handle_find_notes(config, arguments)
+                return await handle_find_notes(ctx, state, arguments)
             elif name == "get_note_content":
-                return await handle_get_note_content(config, arguments)
+                return await handle_get_note_content(ctx, state, arguments)
             elif name == "get_vault_info":
-                return await handle_get_vault_info(config, arguments)
+                return await handle_get_vault_info(ctx, state, arguments)
             else:
                 return [TextContent(type="text", text=f"Unknown tool: {name}")]
         except Exception as e:
@@ -112,15 +119,17 @@ async def serve_mcp(config) -> None:
         from mcp.server import InitializationOptions
         from mcp.types import ServerCapabilities
 
+        from . import __version__
+
         init_options = InitializationOptions(
             server_name="obsidian-vault",
-            server_version="0.1.10",
+            server_version=__version__,
             capabilities=ServerCapabilities(tools={"enabled": True}),
         )
         await server.run(read_stream, write_stream, init_options)
 
 
-async def handle_create_note(config, args: dict) -> list:
+async def handle_create_note(ctx: typer.Context, state, args: dict) -> list:
     """Create a new note in the vault"""
     from mcp.types import TextContent
 
@@ -129,26 +138,44 @@ async def handle_create_note(config, args: dict) -> list:
     force = args.get("force", False)
 
     try:
-        from .main import _create_new_file
+        import sys
+        from pathlib import Path
+        from unittest.mock import patch
 
-        vault_path = Path(config.vault)
-        file_path = vault_path / f"{filename}.md"
+        from .main import new
 
-        if file_path.exists() and not force:
-            return [
-                TextContent(
-                    type="text",
-                    text=f"File {filename}.md already exists. Use force=true to overwrite.",
-                )
-            ]
+        # Convert filename to Path object (remove .md if present, new() will add it)
+        filename_path = Path(filename)
+        if filename_path.suffix == ".md":
+            filename_path = filename_path.with_suffix("")
 
-        _create_new_file(file_path, content)
-        return [TextContent(type="text", text=f"Successfully created note: {filename}.md")]
+        # If content is provided, we need to simulate stdin input
+        if content:
+            # Mock sys.stdin to simulate piped content
+            with (
+                patch.object(sys.stdin, "isatty", return_value=False),
+                patch.object(sys.stdin, "read", return_value=content),
+            ):
+                new(ctx, filename_path, force=force)
+        else:
+            # Call the new command without content (will use default template)
+            new(ctx, filename_path, force=force)
+
+        success_msg = f"Successfully created note: {filename_path.with_suffix('.md')}"
+        return [TextContent(type="text", text=success_msg)]
+
+    except typer.Exit as e:
+        # Handle typer exits (like file already exists)
+        if e.exit_code == 1:
+            error_msg = f"File {filename}.md already exists. Use force=true to overwrite."
+            return [TextContent(type="text", text=error_msg)]
+        else:
+            return [TextContent(type="text", text=f"Command exited with code {e.exit_code}")]
     except Exception as e:
         return [TextContent(type="text", text=f"Failed to create note: {str(e)}")]
 
 
-async def handle_find_notes(config, args: dict) -> list:
+async def handle_find_notes(ctx: typer.Context, state, args: dict) -> list:
     """Find notes by name or title"""
     from mcp.types import TextContent
 
@@ -158,8 +185,8 @@ async def handle_find_notes(config, args: dict) -> list:
     try:
         from .main import _find_matching_files
 
-        vault_path = Path(config.vault)
-        matches = _find_matching_files(vault_path, term, exact, config.ignored_directories)
+        vault_path = Path(state.vault)
+        matches = _find_matching_files(vault_path, term, exact)
 
         if not matches:
             return [TextContent(type="text", text=f"No files found matching '{term}'")]
@@ -173,7 +200,7 @@ async def handle_find_notes(config, args: dict) -> list:
         return [TextContent(type="text", text=f"Error finding notes: {str(e)}")]
 
 
-async def handle_get_note_content(config, args: dict) -> list:
+async def handle_get_note_content(ctx: typer.Context, state, args: dict) -> list:
     """Get the content of a specific note"""
     from mcp.types import TextContent
 
@@ -181,44 +208,56 @@ async def handle_get_note_content(config, args: dict) -> list:
     show_frontmatter = args.get("show_frontmatter", False)
 
     try:
-        import frontmatter
+        import io
+        from contextlib import redirect_stdout
+        from pathlib import Path
 
-        from .main import _resolve_path
+        from .main import cat
 
-        vault_path = Path(config.vault)
-        file_path = _resolve_path(Path(filename), vault_path)
+        # Convert filename to Path object
+        filename_path = Path(filename)
 
-        with open(file_path, "r", encoding="utf-8") as f:
-            post = frontmatter.load(f)
+        # Capture the output from cat command instead of printing to stdout
+        output_buffer = io.StringIO()
 
-        if show_frontmatter:
-            content = frontmatter.dumps(post)
-        else:
-            content = post.content
+        with redirect_stdout(output_buffer):
+            # Call the cat command directly
+            cat(ctx, filename_path, show_frontmatter=show_frontmatter)
 
+        content = output_buffer.getvalue()
         return [TextContent(type="text", text=content)]
+
+    except typer.Exit as e:
+        # Handle typer exits (like file not found)
+        if e.exit_code == 2:
+            return [TextContent(type="text", text=f"File not found: {filename}")]
+        else:
+            return [TextContent(type="text", text=f"Error reading note: exit code {e.exit_code}")]
     except Exception as e:
         return [TextContent(type="text", text=f"Error reading note: {str(e)}")]
 
 
-async def handle_get_vault_info(config, args: dict) -> list:
+async def handle_get_vault_info(ctx: typer.Context, state, args: dict) -> list:
     """Get information about the vault"""
     from mcp.types import TextContent
 
     try:
-        vault_path = Path(config.vault)
+        from .main import _get_vault_info
 
-        if not vault_path.exists():
-            return [TextContent(type="text", text=f"Vault not found at: {vault_path}")]
+        vault_info = _get_vault_info(state)
 
-        md_files = list(vault_path.rglob("*.md"))
+        if not vault_info["exists"]:
+            return [TextContent(type="text", text=vault_info["error"])]
 
         info = f"""Obsidian Vault Information:
-- Path: {vault_path}
-- Total Markdown files: {len(md_files)}
-- Editor: {config.editor}
-- Ignored directories: {", ".join(config.ignored_directories)}
-- Journal template: {config.journal_template}
+- Path: {vault_info["vault_path"]}
+- Total files: {vault_info["total_files"]}
+- Total directories: {vault_info["total_directories"]}
+- Markdown files: {vault_info["markdown_files"]}
+- Editor: {vault_info["editor"]}
+- Ignored directories: {", ".join(vault_info["ignored_directories"])}
+- Journal template: {vault_info["journal_template"]}
+- Version: {vault_info["version"]}
 """
 
         return [TextContent(type="text", text=info)]

@@ -155,23 +155,23 @@ Start an MCP (Model Context Protocol) server for the vault.
 obsidian-cli serve
 ```
 
-The serve command starts an MCP server that exposes vault operations as tools that can be used by AI assistants and other MCP clients. The server communicates over stdio using the MCP protocol.
+The serve command starts an MCP server that exposes vault operations as tools that can be used by AI assistants and other MCP clients. The server communicates over stdio using the MCP protocol and enables seamless integration between AI systems and your Obsidian vault.
 
-Features:
+**Key Features:**
 
-- Exposes vault operations as standardized MCP tools
-- Enables AI assistants to interact directly with your Obsidian vault
-- Supports note creation, content retrieval, and vault information queries
-- Runs indefinitely until interrupted (Ctrl+C)
+- **Standardized AI Integration**: Uses the open MCP protocol for broad compatibility with AI assistants
+- **Real-time Vault Access**: AI assistants can create, read, search, and analyze notes in real-time
+- **Secure Local Operation**: All communication occurs locally via stdio with no external network access
+- **Production Ready**: Robust error handling and comprehensive test coverage
 
-Available MCP Tools:
+**Available MCP Tools:**
 
-- `create_note`: Create new notes in the vault with frontmatter
-- `find_notes`: Search for notes by name or title
-- `get_note_content`: Retrieve note content with optional frontmatter
-- `get_vault_info`: Get vault statistics and configuration information
+- `create_note`: Create new notes with frontmatter, content, and force options
+- `find_notes`: Search for notes by name or title with exact/fuzzy matching
+- `get_note_content`: Retrieve note content with optional frontmatter inclusion
+- `get_vault_info`: Get comprehensive vault statistics and configuration information
 
-Example usage:
+**Example Usage:**
 
 ```bash
 # Start MCP server with vault from config
@@ -180,8 +180,31 @@ obsidian-cli serve
 # Start with specific vault path
 obsidian-cli --vault /path/to/vault serve
 
-# Start with verbose logging
+# Start with verbose logging for debugging
 obsidian-cli --verbose serve
 ```
 
-The server will use the configured vault path and other settings from your configuration file or command-line options.
+**Server Behavior:**
+
+- Runs indefinitely until interrupted (Ctrl+C) or terminated by the MCP client
+- Uses the configured vault path and settings from your configuration file or command-line options
+- Provides detailed logging when verbose mode is enabled
+- Handles client connections and disconnections gracefully
+
+**AI Assistant Integration:**
+
+The MCP server enables AI assistants to:
+
+- Create structured notes from conversation context
+- Search and analyze existing vault content
+- Maintain vault organization and consistency
+- Generate summaries and reports from vault data
+- Provide intelligent note recommendations and linking
+
+For detailed setup instructions, configuration options, and integration examples, see the [MCP Integration Guide](mcp-integration.md).
+
+**Requirements:**
+
+- MCP dependencies: `pip install mcp>=1.0.0`
+- Valid vault path configuration
+- Appropriate file system permissions for the vault directory

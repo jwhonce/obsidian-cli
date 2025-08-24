@@ -492,37 +492,82 @@ def find(
     _display_find_results(matches, page_name, state.verbose, state.vault)
 
 
+def _get_vault_info(state) -> dict:
+    """Get vault information as structured data.
+
+    Args:
+        state: State object containing vault configuration
+
+    Returns:
+        Dictionary containing vault information
+    """
+    vault_path = Path(state.vault)
+
+    if not vault_path.exists():
+        return {
+            "error": f"Vault not found at: {vault_path}",
+            "vault_path": str(vault_path),
+            "exists": False,
+        }
+
+    # Count files and directories
+    file_count = 0
+    dir_count = 0
+    md_files = []
+
+    for item in vault_path.rglob("*"):
+        if item.is_file():
+            file_count += 1
+            if item.suffix == ".md":
+                md_files.append(item)
+        elif item.is_dir():
+            dir_count += 1
+
+    # Get journal template information
+    template_vars = _get_journal_template_vars()
+    journal_path_str = state.journal_template.format(**template_vars)
+
+    return {
+        "vault_path": str(vault_path),
+        "exists": True,
+        "total_files": file_count,
+        "total_directories": dir_count,
+        "markdown_files": len(md_files),
+        "editor": state.editor,
+        "verbose": state.verbose,
+        "ignored_directories": state.ignored_directories,
+        "journal_template": state.journal_template,
+        "journal_path": journal_path_str,
+        "version": __version__,
+    }
+
+
 @cli.command()
 def info(ctx: typer.Context) -> None:
     """Display information about the current Obsidian Vault and configuration."""
     state: State = ctx.obj
 
-    template_vars = _get_journal_template_vars()
-    journal_path_str = state.journal_template.format(**template_vars)
+    vault_info = _get_vault_info(state)
+
+    if not vault_info["exists"]:
+        typer.secho(vault_info["error"], err=True, color=True, fg="red")
+        raise typer.Exit(code=1)
 
     # Display vault statistics
     typer.secho("--- Vault Information ---", bold=True)
-    typer.echo(f"Vault Path: {state.vault}")
-
-    file_count = 0
-    dir_count = 0
-    for item in state.vault.rglob("*"):
-        if item.is_file():
-            file_count += 1
-        elif item.is_dir():
-            dir_count += 1
-
-    typer.echo(f"Total Files: {file_count}")
-    typer.echo(f"Total Directories: {dir_count}")
+    typer.echo(f"Vault Path: {vault_info['vault_path']}")
+    typer.echo(f"Total Files: {vault_info['total_files']}")
+    typer.echo(f"Total Directories: {vault_info['total_directories']}")
 
     # Display configuration information
     typer.echo("")
     typer.secho("--- Configuration Details ---", bold=True)
-    typer.echo(f"Editor: {state.editor}")
-    typer.echo(f"Verbose: {state.verbose}")
-    typer.echo(f"Ignored Directories: {':'.join(state.ignored_directories)}")
-    typer.echo(f"Journal Template: {state.journal_template} => {journal_path_str}")
-    typer.echo(f"Version: {__version__}")
+    typer.echo(f"Editor: {vault_info['editor']}")
+    typer.echo(f"Verbose: {vault_info['verbose']}")
+    typer.echo(f"Ignored Directories: {':'.join(vault_info['ignored_directories'])}")
+    journal_template_info = f"{vault_info['journal_template']} => {vault_info['journal_path']}"
+    typer.echo(f"Journal Template: {journal_template_info}")
+    typer.echo(f"Version: {vault_info['version']}")
 
 
 @cli.command()
@@ -874,7 +919,7 @@ def serve(ctx: typer.Context) -> None:
 
     try:
         # Run the MCP server
-        asyncio.run(serve_mcp(state))
+        asyncio.run(serve_mcp(ctx, state))
     except (KeyboardInterrupt, CancelledError):
         if state.verbose:
             typer.echo("\nMCP server stopped.")

@@ -1465,61 +1465,70 @@ verbose = false
         """Test serve command with verbose output"""
         config_file = self.create_basic_config(verbose=True)
 
-        with patch("obsidian_cli.mcp_server.serve_mcp"):
-            with patch("asyncio.run") as mock_asyncio_run:
-                mock_asyncio_run.side_effect = KeyboardInterrupt()  # Simulate Ctrl+C
+        with patch("obsidian_cli.mcp_server.serve_mcp") as mock_serve:
+            # Make the async function raise KeyboardInterrupt when awaited
+            async def mock_serve_func(*args, **kwargs):
+                raise KeyboardInterrupt()
 
-                result = self.runner.invoke(
-                    cli,
-                    [
-                        "--vault",
-                        str(self.vault_path),
-                        "--config",
-                        str(config_file),
-                        "--verbose",
-                        "serve",
-                    ],
-                )
-                self.assertEqual(result.exit_code, 0)
-                self.assertIn("Starting MCP server for vault:", result.stdout)
-                self.assertIn("Server will run until interrupted", result.stdout)
-                self.assertIn("MCP server stopped", result.stdout)
+            mock_serve.side_effect = mock_serve_func
+
+            result = self.runner.invoke(
+                cli,
+                [
+                    "--vault",
+                    str(self.vault_path),
+                    "--config",
+                    str(config_file),
+                    "--verbose",
+                    "serve",
+                ],
+            )
+            self.assertEqual(result.exit_code, 0)
+            self.assertIn("Starting MCP server for vault:", result.stdout)
+            self.assertIn("Server will run until interrupted", result.stdout)
+            self.assertIn("MCP server stopped", result.stdout)
 
     def test_serve_command_server_error(self):
         """Test serve command when server encounters an error"""
         config_file = self.create_basic_config()
 
-        with patch("obsidian_cli.mcp_server.serve_mcp"):
-            with patch("asyncio.run") as mock_asyncio_run:
-                mock_asyncio_run.side_effect = RuntimeError("Server failed to start")
+        with patch("obsidian_cli.mcp_server.serve_mcp") as mock_serve:
+            # Make the async function raise an error when awaited
+            async def mock_serve_func(*args, **kwargs):
+                raise RuntimeError("Server failed to start")
 
-                result = self.runner.invoke(
-                    cli, ["--vault", str(self.vault_path), "--config", str(config_file), "serve"]
-                )
-                self.assertEqual(result.exit_code, 1)
-                self.assertIn("Error starting MCP server", result.stderr)
-                self.assertIn("Server failed to start", result.stderr)
+            mock_serve.side_effect = mock_serve_func
+
+            result = self.runner.invoke(
+                cli, ["--vault", str(self.vault_path), "--config", str(config_file), "serve"]
+            )
+            self.assertEqual(result.exit_code, 1)
+            self.assertIn("Error starting MCP server", result.stderr)
+            self.assertIn("Server failed to start", result.stderr)
 
     def test_serve_command_configuration_loading(self):
         """Test that serve command properly loads configuration"""
         config_file = self.create_basic_config(verbose=False)
 
         with patch("obsidian_cli.mcp_server.serve_mcp") as mock_serve:
-            with patch("asyncio.run") as mock_asyncio_run:
-                mock_asyncio_run.side_effect = KeyboardInterrupt()
+            # Make the async function raise KeyboardInterrupt when awaited
+            async def mock_serve_func(*args, **kwargs):
+                raise KeyboardInterrupt()
 
-                result = self.runner.invoke(
-                    cli, ["--vault", str(self.vault_path), "--config", str(config_file), "serve"]
-                )
-                self.assertEqual(result.exit_code, 0)
+            mock_serve.side_effect = mock_serve_func
 
-                # Verify serve_mcp was called with the correct configuration
-                mock_serve.assert_called_once()
-                config_arg = mock_serve.call_args[0][0]
-                # Use Path.resolve() to handle symlinks consistently
-                self.assertEqual(Path(config_arg.vault).resolve(), Path(self.vault_path).resolve())
-                self.assertEqual(str(config_arg.editor), "vi")  # Default editor
-                self.assertFalse(config_arg.verbose)
+            result = self.runner.invoke(
+                cli, ["--vault", str(self.vault_path), "--config", str(config_file), "serve"]
+            )
+            self.assertEqual(result.exit_code, 0)
+
+            # Verify serve_mcp was called with the correct configuration
+            mock_serve.assert_called_once()
+            _ctx_arg, state_arg = mock_serve.call_args[0][0], mock_serve.call_args[0][1]
+            # Use Path.resolve() to handle symlinks consistently
+            self.assertEqual(Path(state_arg.vault).resolve(), Path(self.vault_path).resolve())
+            self.assertEqual(str(state_arg.editor), "vi")  # Default editor
+            self.assertFalse(state_arg.verbose)
 
 
 if __name__ == "__main__":

@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "obsidian-cli"
 version = "0.1.10"
-description = "CLI tool for interacting with Obsidian"
+description = "CLI tool for interacting with Obsidian vaults, featuring AI assistant integration via MCP server"
 readme = "README.md"
 authors = [{ name = "Obsidian CLI Team", email = "jwhonce@gmail.com" }]
 license = "Apache-2.0"
@@ -23,7 +23,17 @@ classifiers = [
     "Programming Language :: Python :: 3.13.6",
     "Topic :: Utilities",
 ]
-keywords = ["obsidian", "cli", "markdown", "notes", "knowledge-management"]
+keywords = [
+    "obsidian",
+    "cli",
+    "markdown",
+    "notes",
+    "knowledge-management",
+    "mcp",
+    "ai",
+    "assistant",
+    "model-context-protocol",
+]
 dependencies = [
     "typer>=0.16.0",
     "rich>=13.0.0",
