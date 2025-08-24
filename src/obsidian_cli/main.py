@@ -78,7 +78,7 @@ Configuration:
     - {weekday_abbr}: Abbreviated weekday (e.g., Mon)
 
 Author: Jhon Honce / Copilot enablement
-Version: 0.1.11
+Version: 0.1.12
 License: Apache License 2.0
 """
 
@@ -86,6 +86,7 @@ import os
 import sys
 import tomllib
 from asyncio import CancelledError
+from collections import defaultdict
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -106,7 +107,7 @@ except Exception:
     try:
         from . import __version__
     except Exception:
-        __version__ = "0.1.11"  # Fallback version
+        __version__ = "0.1.12"  # Fallback version
 
 # Initialize Typer app
 cli = typer.Typer(
@@ -510,34 +511,51 @@ def _get_vault_info(state) -> dict:
             "exists": False,
         }
 
-    # Count files and directories
-    file_count = 0
-    dir_count = 0
-    md_files = []
+    def _walk_vault(vault_path: Path):
+        """Recursively walks a directory and yields Path objects for directories and files."""
+        yield vault_path
 
-    for item in vault_path.rglob("*"):
-        if item.is_file():
-            file_count += 1
-            if item.suffix == ".md":
-                md_files.append(item)
-        elif item.is_dir():
-            dir_count += 1
+        for entry in vault_path.iterdir():
+            if entry.is_dir():
+                # Recursively call for subdirectories
+                yield from _walk_vault(entry)
+            else:
+                # Yield file Path object
+                yield entry
+
+    summary = defaultdict(lambda: {"count": 0, "total_size": 0})
+
+    for entry in _walk_vault(vault_path):
+        if entry.is_dir():
+            summary["directories"]["count"] += 1
+            summary["directories"]["total_size"] += entry.lstat().st_size
+
+        elif entry.is_file():
+            summary["files"]["count"] += 1
+            summary[entry.suffix]["count"] += 1
+
+            try:
+                st_size = entry.lstat().st_size
+                summary["files"]["total_size"] += st_size
+                summary[entry.suffix]["total_size"] += st_size
+            except Exception:
+                pass
 
     # Get journal template information
     template_vars = _get_journal_template_vars()
     journal_path_str = state.journal_template.format(**template_vars)
 
     return {
-        "vault_path": str(vault_path),
-        "exists": True,
-        "total_files": file_count,
-        "total_directories": dir_count,
-        "markdown_files": len(md_files),
         "editor": state.editor,
-        "verbose": state.verbose,
+        "exists": True,
         "ignored_directories": state.ignored_directories,
-        "journal_template": state.journal_template,
         "journal_path": journal_path_str,
+        "journal_template": state.journal_template,
+        "markdown_files": summary[".md"]["count"],
+        "total_directories": summary["directories"]["count"],
+        "total_files": summary["files"]["count"],
+        "vault_path": str(vault_path),
+        "verbose": state.verbose,
         "version": __version__,
     }
 
@@ -556,6 +574,7 @@ def info(ctx: typer.Context) -> None:
     # Display vault statistics
     typer.secho("--- Vault Information ---", bold=True)
     typer.echo(f"Vault Path: {vault_info['vault_path']}")
+    typer.echo(f"Markdown Files: {vault_info['markdown_files']}")
     typer.echo(f"Total Files: {vault_info['total_files']}")
     typer.echo(f"Total Directories: {vault_info['total_directories']}")
 

@@ -34,7 +34,7 @@ async def serve_mcp(ctx: typer.Context, state) -> None:
 
     @server.list_tools()
     async def list_tools() -> list[Tool]:
-        """List available tools"""
+        """List available tools."""
         return [
             Tool(
                 name="create_note",
@@ -98,7 +98,7 @@ async def serve_mcp(ctx: typer.Context, state) -> None:
 
     @server.call_tool()
     async def call_tool(name: str, arguments: dict) -> list[TextContent]:
-        """Handle tool calls"""
+        """Handle tool calls."""
         try:
             if name == "create_note":
                 return await handle_create_note(ctx, state, arguments)
@@ -130,7 +130,7 @@ async def serve_mcp(ctx: typer.Context, state) -> None:
 
 
 async def handle_create_note(ctx: typer.Context, state, args: dict) -> list:
-    """Create a new note in the vault"""
+    """Create a new note in the vault."""
     from mcp.types import TextContent
 
     filename = args["filename"]
@@ -176,7 +176,7 @@ async def handle_create_note(ctx: typer.Context, state, args: dict) -> list:
 
 
 async def handle_find_notes(ctx: typer.Context, state, args: dict) -> list:
-    """Find notes by name or title"""
+    """Find notes by name or title."""
     from mcp.types import TextContent
 
     term = args["term"]
@@ -201,7 +201,7 @@ async def handle_find_notes(ctx: typer.Context, state, args: dict) -> list:
 
 
 async def handle_get_note_content(ctx: typer.Context, state, args: dict) -> list:
-    """Get the content of a specific note"""
+    """Get the content of a specific note."""
     from mcp.types import TextContent
 
     filename = args["filename"]
@@ -238,7 +238,7 @@ async def handle_get_note_content(ctx: typer.Context, state, args: dict) -> list
 
 
 async def handle_get_vault_info(ctx: typer.Context, state, args: dict) -> list:
-    """Get information about the vault"""
+    """Get information about the vault."""
     from mcp.types import TextContent
 
     try:
