@@ -193,7 +193,7 @@ class Configuration:
             with open(path, "rb") as f:
                 config_data = tomllib.load(f)
         except tomllib.TOMLDecodeError as e:
-            typer.secho(f"Error parsing {path}: {e}", err=True, color=True, fg="red")
+            typer.secho(f"Error parsing {path}: {e}", err=True, fg="red")
             raise e
 
         return config_data
@@ -278,7 +278,7 @@ def main(
             typer.echo("No configuration file found, using defaults.")
         configuration = Configuration()
     except Exception as e:
-        typer.secho(str(e), err=True, color=True, fg="red")
+        typer.secho(str(e), err=True, fg="red")
         raise typer.Exit(code=2) from e
 
     # Apply configuration values if CLI arguments are not provided
@@ -295,7 +295,6 @@ def main(
                 " or specify 'vault' in a configuration file."
             ),
             err=True,
-            color=True,
             fg="red",
         )
         raise typer.Exit(code=1)
@@ -335,7 +334,6 @@ def main(
         typer.secho(
             f"Error: Invalid journal_template: {journal_template}",
             err=True,
-            color=True,
             fg="red",
         )
         raise typer.Exit(code=1) from e
@@ -373,7 +371,7 @@ def add_uid(
         #  we cannot use typer helpers to enforce validation.
         filename = _resolve_path(page_or_path, state.vault)
     except FileNotFoundError as e:
-        typer.secho(e, err=True, color=True, fg="red")
+        typer.secho(e, err=True, fg="red")
         raise typer.Exit(code=2) from e
 
     try:
@@ -385,10 +383,9 @@ def add_uid(
             typer.secho(
                 f"Page '{page_or_path}' already has UID: {post.metadata[state.ident_key]}",
                 err=True,
-                color=True,
                 fg="red",
             )
-            typer.secho("Use --force to replace it.", err=True, color="yellow")
+            typer.secho("Use --force to replace it.", err=True, fg="yellow")
             raise typer.Exit(code=1)
 
         import uuid
@@ -424,7 +421,7 @@ def cat(
             # Parse with frontmatter and only display the content / body
             typer.echo(frontmatter.load(filename).content)
     except FileNotFoundError as e:
-        typer.secho(e, err=True, color=True, fg="red")
+        typer.secho(e, err=True, fg="red")
         raise typer.Exit(code=2) from e
     except Exception as e:
         raise typer.Exit(code=1) from e
@@ -438,7 +435,7 @@ def edit(ctx: typer.Context, page_or_path: PAGE_FILE) -> None:
     try:
         filename = _resolve_path(page_or_path, state.vault)
     except FileNotFoundError as e:
-        typer.secho(e, err=True, color=True, fg="red")
+        typer.secho(e, err=True, fg="red")
         raise typer.Exit(code=2) from e
 
     try:
@@ -447,17 +444,15 @@ def edit(ctx: typer.Context, page_or_path: PAGE_FILE) -> None:
 
         subprocess.call([state.editor, filename])
     except FileNotFoundError:
-        editor_name = state.editor
         typer.secho(
-            f"Error: '{editor_name}' command not found. "
-            f"Please ensure {editor_name} is installed and in your PATH.",
+            f"Error: '{state.editor}' command not found. "
+            f"Please ensure {state.editor} is installed and in your PATH.",
             err=True,
-            color=True,
             fg="red",
         )
         raise typer.Exit(code=1)  # noqa: B904
     except Exception as e:
-        typer.secho(f"An error occurred while editing {filename}", err=True, color=True, fg="red")
+        typer.secho(f"An error occurred while editing {filename}", err=True, fg="red")
         raise typer.Exit(code=1) from e
 
     ctx.invoke(meta, ctx=ctx, page_or_path=page_or_path, key="modified", value=datetime.now())
@@ -568,7 +563,7 @@ def info(ctx: typer.Context) -> None:
     vault_info = _get_vault_info(state)
 
     if not vault_info["exists"]:
-        typer.secho(vault_info["error"], err=True, color=True, fg="red")
+        typer.secho(vault_info["error"], err=True, fg="red")
         raise typer.Exit(code=1)
 
     # Display vault statistics
@@ -607,12 +602,10 @@ def journal(
         journal_path_str = state.journal_template.format(**template_vars)
         page_path = Path(journal_path_str)
     except KeyError as e:
-        typer.secho(
-            f"Invalid template variable in journal_template: {e}", err=True, color=True, fg="red"
-        )
+        typer.secho(f"Invalid template variable in journal_template: {e}", err=True, fg="red")
         raise typer.Exit(code=1) from e
     except Exception as e:
-        typer.secho(f"Error formatting journal template: {e}", err=True, color=True, fg="red")
+        typer.secho(f"Error formatting journal template: {e}", err=True, fg="red")
         raise typer.Exit(code=1) from e
 
     if state.verbose:
@@ -623,7 +616,7 @@ def journal(
         # Open the journal for editing
         ctx.invoke(edit, ctx=ctx, page_or_path=page_path)
     except FileNotFoundError as e:
-        typer.echo(f"Today's journal '{page_path}' not found.", err=True, color=True, fg="red")
+        typer.echo(f"Today's journal '{page_path}' not found.", err=True, fg="red")
         raise typer.Exit(code=2) from e
 
 
@@ -653,7 +646,7 @@ def meta(
         filename = _resolve_path(page_or_path, state.vault)
         post = _get_frontmatter(filename)
     except FileNotFoundError as e:
-        typer.secho(e, err=True, color=True, fg="red")
+        typer.secho(e, err=True, fg="red")
         raise typer.Exit(code=1) from e
 
     try:
@@ -669,7 +662,6 @@ def meta(
         typer.secho(
             f"Key '{key}' not found in frontmatter of '{page_or_path}'",
             err=True,
-            color=True,
             fg="red",
         )
         raise typer.Exit(code=1)  # noqa: B904
@@ -690,11 +682,11 @@ def new(
     # since we expect the file to not exist yet
     filename = state.vault / page_or_path.with_suffix(".md")
     if filename.exists() and not force:
-        typer.secho(f"File already exists: {filename}", err=True, color=True, fg="red")
+        typer.secho(f"File already exists: {filename}", err=True, fg="red")
         raise typer.Exit(code=1)
     elif filename.exists() and force:
         typer.secho(
-            f"Overwriting existing file: {filename}", color="yellow"
+            f"Overwriting existing file: {filename}", fg="yellow"
         ) if state.verbose else None
 
     try:
@@ -711,7 +703,8 @@ def new(
 
             # Use the piped content for the file
             post = frontmatter.Post(content)
-            typer.echo("Using content from stdin") if state.verbose else None
+            if state.verbose:
+                typer.echo("Using content from stdin")
         else:
             from mdutils.mdutils import MdUtils
 
@@ -731,7 +724,8 @@ def new(
         # Write to file with frontmatter
         with open(filename, "w") as f:
             f.write(frontmatter.dumps(post) + "\n\n")
-        typer.echo(f"Created new file: {filename}") if state.verbose else None
+        if state.verbose:
+            typer.echo(f"Created new file: {filename}")
 
         # Now edit the file if we're not using stdin
         # (if using stdin, the file already has content)
@@ -785,9 +779,7 @@ def query(
 
     # Check for conflicting options
     if value is not None and contains is not None:
-        typer.secho(
-            "Error: Cannot specify both --value and --contains", err=True, color=True, fg="red"
-        )
+        typer.secho("Error: Cannot specify both --value and --contains", err=True, fg="red")
         raise typer.Exit(code=1)
 
     if state.verbose:
@@ -812,9 +804,8 @@ def query(
 
             # Skip files in ignored directories
             if _check_if_path_ignored(rel_path, state.ignored_directories):
-                typer.echo(
-                    f"Skipping excluded file: {rel_path}", err=True
-                ) if state.verbose else None
+                if state.verbose:
+                    typer.echo(f"Skipping excluded file: {rel_path}", err=True)
                 continue
 
             # Parse frontmatter
@@ -847,11 +838,12 @@ def query(
 
         except Exception as e:
             # Skip files with issues
-            typer.echo(
-                f"Warning: Could not process {file_path}: {e}",
-                err=True,
-                color="yellow",
-            ) if state.verbose else None
+            if state.verbose:
+                typer.echo(
+                    f"Warning: Could not process {file_path}: {e}",
+                    err=True,
+                    fg="yellow",
+                )
 
     # Display results
     if count:
@@ -872,7 +864,7 @@ def rm(
     try:
         filename = _resolve_path(page_or_path, state.vault)
     except FileNotFoundError as e:
-        typer.secho(e, err=True, color=True, fg="red")
+        typer.secho(e, err=True, fg="red")
         raise typer.Exit(code=2) from e
 
     # Skip confirmation if force is True, otherwise ask for confirmation
@@ -883,7 +875,8 @@ def rm(
     try:
         # Remove the file
         filename.unlink()
-        typer.echo(f"File removed: {filename}") if state.verbose else None
+        if state.verbose:
+            typer.echo(f"File removed: {filename}")
     except Exception as e:
         raise typer.Exit(code=1) from e
 
@@ -915,7 +908,6 @@ def serve(ctx: typer.Context) -> None:
                 f"Details: {e}"
             ),
             err=True,
-            color=True,
             fg="red",
         )
         raise typer.Exit(1) from e
@@ -952,9 +944,9 @@ def serve(ctx: typer.Context) -> None:
     except Exception as e:
         import traceback
 
-        typer.secho(f"Error starting MCP server: {e}", err=True, color=True, fg="red")
+        typer.secho(f"Error starting MCP server: {e}", err=True, fg="red")
         if state.verbose:
-            typer.echo(f"Traceback: {traceback.format_exc()}", err=True)
+            typer.secho(f"Traceback: {traceback.format_exc()}", err=True, fg="red")
         raise typer.Exit(1) from e
 
 
@@ -1029,7 +1021,7 @@ def _display_find_results(matches: list[Path], page_name: str, verbose: bool, va
         None: Results are printed directly to stdout.
     """
     if not matches:
-        typer.secho(f"No files found matching '{page_name}'", err=True, color=True, fg="red")
+        typer.secho(f"No files found matching '{page_name}'", err=True, fg="red")
     else:
         for match in sorted(matches):
             typer.echo(match)
@@ -1217,7 +1209,7 @@ def _list_all_metadata(post: frontmatter.Post) -> None:
               if no metadata is found.
     """
     if not post.metadata:
-        typer.secho("No frontmatter metadata found for this page", err=True, color=True, fg="red")
+        typer.secho("No frontmatter metadata found for this page", err=True, fg="red")
     else:
         for k, v in post.metadata.items():
             typer.echo(f"{k}: {v}")
