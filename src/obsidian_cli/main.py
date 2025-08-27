@@ -7,15 +7,15 @@ It facilitates tasks such as creating notes, editing content, querying metadata,
 and managing files.
 
 Key features:
+- Access existing journal entries with configurable templates
+- Add unique IDs to files
+- Configuration via obsidian-cli.toml file and environment variables
 - Create and edit markdown files with proper frontmatter
+- Display information about the vault
+- Find files by name or title with exact/fuzzy matching
+- Force flag for commands that modify files
 - Query files based on frontmatter metadata with configurable directory filtering
 - View and update metadata in existing files
-- Add unique IDs to files
-- Access existing journal entries with configurable templates
-- Find files by name or title with exact/fuzzy matching
-- Display information about the vault
-- Configuration via obsidian-cli.toml file and environment variables
-- Force flag for commands that modify files
 
 The CLI uses Typer for command-line interface management and provides a clean,
 intuitive interface with extensive help documentation.
@@ -49,12 +49,12 @@ Configuration:
     The tool can be configured using an obsidian-cli.toml file which should contain:
 
     ```toml
-    vault = "~/path/to/vault"
     editor = "vim"
-    verbose = false
     ident_key = "uid"
     ignored_directories = ["Assets/", ".obsidian/", ".git/"]
     journal_template = "Calendar/{year}/{month:02d}/{year}-{month:02d}-{day:02d}"
+    vault = "~/path/to/vault"
+    verbose = false
     ```
 
     Configuration can be placed in:
@@ -62,9 +62,9 @@ Configuration:
     - ~/.config/obsidian-cli/config.toml (user's config directory)
 
     Environment Variables:
-    - OBSIDIAN_VAULT: Path to the Obsidian vault
     - EDITOR: Editor to use for editing files
     - OBSIDIAN_BLACKLIST: Colon-separated list of directory patterns to ignore
+    - OBSIDIAN_VAULT: Path to the Obsidian vault
 
     Journal Template Variables:
     - {year}: 4-digit year (e.g., 2025)
@@ -128,7 +128,7 @@ def _version(value: bool) -> None:
 class Configuration:
     """Record configuration for obsidian-cli application.
 
-    Default paths include:
+    Default paths include in order of precedence:
     - ./obsidian-cli.toml (current directory)
     - ~/.config/obsidian-cli/config.toml (user's config directory)
     """
@@ -275,11 +275,15 @@ def main(
         configuration = Configuration.from_file(config, verbose=verbose is True)
     except FileNotFoundError:
         if verbose is True:
-            typer.echo("No configuration file found, using defaults.")
+            typer.secho("No configuration file found, using defaults.", fg="yellow")
         configuration = Configuration()
     except Exception as e:
         typer.secho(str(e), err=True, fg="red")
         raise typer.Exit(code=2) from e
+
+    # Get verbose setting from command line, config file, or default to False
+    if verbose is None:
+        verbose = configuration.verbose
 
     # Apply configuration values if CLI arguments are not provided
     if vault is None:
@@ -304,18 +308,13 @@ def main(
         if editor_config:
             editor = Path(os.path.expanduser(editor_config))
 
-    # Get verbose setting from command line, config file, or default to False
-    if verbose is None:
-        verbose = configuration.verbose
-
     # Get ignored directories from command line, config, or defaults
     # (in order of precedence)
-    if ignored_directories is not None:
+    if ignored_directories is None:
+        ignored_dirs_list = list(configuration.ignored_directories)
+    else:
         # Command line argument provided - split by colon
         ignored_dirs_list = [dir.strip() for dir in ignored_directories.split(":") if dir.strip()]
-    else:
-        # Use configuration file or defaults
-        ignored_dirs_list = list(configuration.ignored_directories)
 
     # Validate journal template
     journal_template = configuration.journal_template
@@ -1266,7 +1265,9 @@ def _update_metadata_key(
     # Write back to the file
     with open(filename, "w") as f:
         f.write(frontmatter.dumps(post))
-    typer.echo(f"Updated '{key}': '{value}' in {filename}") if verbose else None
+
+    if verbose:
+        typer.echo(f"Updated '{key}': '{value}' in {filename}")
 
 
 if __name__ == "__main__":
