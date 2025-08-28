@@ -87,7 +87,7 @@ import sys
 import tomllib
 from asyncio import CancelledError
 from collections import defaultdict
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from shutil import get_terminal_size
@@ -135,7 +135,9 @@ class Configuration:
 
     editor: Path = Path("vi")
     ident_key: str = "uid"
-    ignored_directories: list[str] = ("Assets/", ".obsidian/", ".git/")
+    ignored_directories: list[str] = field(
+        default_factory=lambda: ["Assets/", ".obsidian/", ".git/"]
+    )
     journal_template: str = "Calendar/{year}/{month:02d}/{year}-{month:02d}-{day:02d}"
     vault: Path = None
     verbose: bool = False
@@ -148,24 +150,32 @@ class Configuration:
         if path:
             config_data = Configuration._load_toml_config(path, verbose)
         else:
-            for config_path in ["./obsidian-cli.toml", "~/.config/obsidian-cli/config.toml"]:
+            for config_path in [
+                "./obsidian-cli.toml",
+                "~/.config/obsidian-cli/config.toml",
+            ]:
                 expanded_path = Path(os.path.expanduser(config_path))
                 if expanded_path.exists():
-                    config_data = Configuration._load_toml_config(expanded_path, verbose)
+                    config_data = Configuration._load_toml_config(
+                        expanded_path, verbose
+                    )
                     break
 
         if config_data is None:
             raise FileNotFoundError("No configuration file found.")
 
         return cls(
-            editor=Path(config_data.get("editor", Configuration.editor)),
-            ident_key=config_data.get("ident_key", Configuration.ident_key),
+            editor=Path(config_data.get("editor", "vi")),
+            ident_key=config_data.get("ident_key", "uid"),
             ignored_directories=config_data.get(
-                "ignored_directories", Configuration.ignored_directories
+                "ignored_directories", ["Assets/", ".obsidian/", ".git/"]
             ),
-            journal_template=config_data.get("journal_template", Configuration.journal_template),
+            journal_template=config_data.get(
+                "journal_template",
+                "Calendar/{year}/{month:02d}/{year}-{month:02d}-{day:02d}",
+            ),
             vault=Path(config_data.get("vault", None)),
-            verbose=config_data.get("verbose", Configuration.verbose),
+            verbose=config_data.get("verbose", False),
         )
 
     @staticmethod
@@ -260,7 +270,7 @@ def main(
             show_default=False,
         ),
     ] = None,
-    version: Annotated[
+    version: Annotated[  
         Optional[bool],
         typer.Option(
             "--version",
@@ -268,7 +278,7 @@ def main(
             is_eager=True,
             help="Show version and exit.",
         ),
-    ] = None,
+    ] = None, # pyright: ignore[reportUnusedParameter]
 ) -> None:
     """CLI operations for interacting with an Obsidian Vault."""
     try:
@@ -314,7 +324,9 @@ def main(
         ignored_dirs_list = list(configuration.ignored_directories)
     else:
         # Command line argument provided - split by colon
-        ignored_dirs_list = [dir.strip() for dir in ignored_directories.split(":") if dir.strip()]
+        ignored_dirs_list = [
+            dir.strip() for dir in ignored_directories.split(":") if dir.strip()
+        ]
 
     # Validate journal template
     journal_template = configuration.journal_template
@@ -390,10 +402,17 @@ def add_uid(
         import uuid
 
         new_uuid = str(uuid.uuid4())
-        typer.echo(f"Generated new UUID: {new_uuid}") if state.verbose else None
+        if state.verbose:
+            typer.echo(f"Generated new UUID: {new_uuid}")
 
         # Update frontmatter with the new UUID
-        ctx.invoke(meta, ctx=ctx, page_or_path=page_or_path, key=state.ident_key, value=new_uuid)
+        ctx.invoke(
+            meta,
+            ctx=ctx,
+            page_or_path=page_or_path,
+            key=state.ident_key,
+            value=new_uuid,
+        )
 
     except Exception as e:
         raise typer.Exit(code=1) from e
@@ -449,12 +468,14 @@ def edit(ctx: typer.Context, page_or_path: PAGE_FILE) -> None:
             err=True,
             fg="red",
         )
-        raise typer.Exit(code=1)  # noqa: B904
+        raise typer.Exit(code=2)  # noqa: B904
     except Exception as e:
         typer.secho(f"An error occurred while editing {filename}", err=True, fg="red")
         raise typer.Exit(code=1) from e
 
-    ctx.invoke(meta, ctx=ctx, page_or_path=page_or_path, key="modified", value=datetime.now())
+    ctx.invoke(
+        meta, ctx=ctx, page_or_path=page_or_path, key="modified", value=datetime.now()
+    )
 
 
 @cli.command()
@@ -517,7 +538,7 @@ def _get_vault_info(state) -> dict:
                 # Yield file Path object
                 yield entry
 
-    summary = defaultdict(lambda: {"count": 0, "total_size": 0})
+    summary: dict[str, dict[str, int]] = defaultdict(lambda: {"count": 0, "total_size": 0})
 
     for entry in _walk_vault(vault_path):
         if entry.is_dir():
@@ -578,7 +599,9 @@ def info(ctx: typer.Context) -> None:
     typer.echo(f"Editor: {vault_info['editor']}")
     typer.echo(f"Verbose: {vault_info['verbose']}")
     typer.echo(f"Ignored Directories: {':'.join(vault_info['ignored_directories'])}")
-    journal_template_info = f"{vault_info['journal_template']} => {vault_info['journal_path']}"
+    journal_template_info = (
+        f"{vault_info['journal_template']} => {vault_info['journal_path']}"
+    )
     typer.echo(f"Journal Template: {journal_template_info}")
     typer.echo(f"Version: {vault_info['version']}")
 
@@ -601,7 +624,9 @@ def journal(
         journal_path_str = state.journal_template.format(**template_vars)
         page_path = Path(journal_path_str)
     except KeyError as e:
-        typer.secho(f"Invalid template variable in journal_template: {e}", err=True, fg="red")
+        typer.secho(
+            f"Invalid template variable in journal_template: {e}", err=True, fg="red"
+        )
         raise typer.Exit(code=1) from e
     except Exception as e:
         typer.secho(f"Error formatting journal template: {e}", err=True, fg="red")
@@ -615,7 +640,7 @@ def journal(
         # Open the journal for editing
         ctx.invoke(edit, ctx=ctx, page_or_path=page_path)
     except FileNotFoundError as e:
-        typer.echo(f"Today's journal '{page_path}' not found.", err=True, fg="red")
+        typer.secho(f"Today's journal '{page_path}' not found.", err=True, fg="red")
         raise typer.Exit(code=2) from e
 
 
@@ -635,7 +660,9 @@ def meta(
     ] = None,
     value: Annotated[
         Optional[str],
-        typer.Option(help="New metadata for given key. If unset, list current metadata of key."),
+        typer.Option(
+            help="New metadata for given key. If unset, list current metadata of key."
+        ),
     ] = None,
 ) -> None:
     """View or update frontmatter metadata in a file."""
@@ -646,7 +673,7 @@ def meta(
         post = _get_frontmatter(filename)
     except FileNotFoundError as e:
         typer.secho(e, err=True, fg="red")
-        raise typer.Exit(code=1) from e
+        raise typer.Exit(code=2) from e
 
     try:
         # Process the metadata based on provided arguments
@@ -707,7 +734,9 @@ def new(
         else:
             from mdutils.mdutils import MdUtils
 
-            md_file = MdUtils(file_name=str(filename), title=title, title_header_style="atx")
+            md_file = MdUtils(
+                file_name=str(filename), title=title, title_header_style="atx"
+            )
             post = frontmatter.Post(md_file.get_md_text())
 
         # Add frontmatter metadata
@@ -721,7 +750,7 @@ def new(
         post[state.ident_key] = str(uuid.uuid4())
 
         # Write to file with frontmatter
-        with open(filename, "w") as f:
+        with open(filename, "w", encoding="utf-8") as f:
             f.write(frontmatter.dumps(post) + "\n\n")
         if state.verbose:
             typer.echo(f"Created new file: {filename}")
@@ -741,19 +770,27 @@ def query(
     key: Annotated[str, typer.Argument(help="Frontmatter key to query across Vault")],
     value: Annotated[
         Optional[str],
-        typer.Option(help="Find pages where the key's metadata exactly matches this string"),
+        typer.Option(
+            help="Find pages where the key's metadata exactly matches this string"
+        ),
     ] = None,
     contains: Annotated[
         Optional[str],
-        typer.Option(help="Find pages where the key's metadata contains this substring"),
+        typer.Option(
+            help="Find pages where the key's metadata contains this substring"
+        ),
     ] = None,
     exists: Annotated[
         bool,
-        typer.Option("--exists", help="Find pages where the key exists", show_default=False),
+        typer.Option(
+            "--exists", help="Find pages where the key exists", show_default=False
+        ),
     ] = False,
     missing: Annotated[
         bool,
-        typer.Option("--missing", help="Find pages where the key is missing", show_default=False),
+        typer.Option(
+            "--missing", help="Find pages where the key is missing", show_default=False
+        ),
     ] = False,
     format: Annotated[
         str,
@@ -778,7 +815,9 @@ def query(
 
     # Check for conflicting options
     if value is not None and contains is not None:
-        typer.secho("Error: Cannot specify both --value and --contains", err=True, fg="red")
+        typer.secho(
+            "Error: Cannot specify both --value and --contains", err=True, fg="red"
+        )
         raise typer.Exit(code=1)
 
     if state.verbose:
@@ -867,7 +906,9 @@ def rm(
         raise typer.Exit(code=2) from e
 
     # Skip confirmation if force is True, otherwise ask for confirmation
-    if not force and not typer.confirm(f"Are you sure you want to delete '{filename}'?"):
+    if not force and not typer.confirm(
+        f"Are you sure you want to delete '{filename}'?"
+    ):
         typer.echo("Operation cancelled.")
         return
 
@@ -1004,7 +1045,9 @@ def _check_title_match(post: frontmatter.Post, search_name: str) -> bool:
     return False
 
 
-def _display_find_results(matches: list[Path], page_name: str, verbose: bool, vault: Path) -> None:
+def _display_find_results(
+    matches: list[Path], page_name: str, verbose: bool, vault: Path
+) -> None:
     """Display the results of the find command.
 
     Prints the matching file paths to stdout. In verbose mode, also attempts
@@ -1113,7 +1156,9 @@ def _display_query_results(
             raise ValueError(f"Unknown format type: {format_type}")
 
 
-def _find_matching_files(vault: Path, search_name: str, exact_match: bool) -> list[Path]:
+def _find_matching_files(
+    vault: Path, search_name: str, exact_match: bool
+) -> list[Path]:
     """Find files in the vault that match the search criteria.
 
     Searches through all markdown files in the vault and checks if they match

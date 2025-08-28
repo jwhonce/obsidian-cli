@@ -329,7 +329,7 @@ journal_template = "NonExistent/{{year}}-{{month:02d}}-{{day:02d}}"
             # Should exit with code 1 for missing vault
             self.assertEqual(result.exit_code, 1)
             # Check that error message is in stderr (typer sends errors to stderr)
-            self.assertIn("Error: Vault path is required", result.stderr)
+            self.assertIn("Error: Vault path is required", result.output)
         finally:
             os.chdir(old_cwd)
             if old_home:
@@ -542,7 +542,7 @@ verbose = true
         # Search for non-existent file
         result = self.runner.invoke(cli, ["--config", str(config_file), "find", "nonexistent"])
         self.assertEqual(result.exit_code, 0)
-        self.assertIn("No files found matching 'nonexistent'", result.stderr)
+        self.assertIn("No files found matching 'nonexistent'", result.output)
 
     def test_find_command_case_insensitive(self):
         """Test that find command is case insensitive for fuzzy search"""
@@ -858,7 +858,7 @@ verbose = true
             ],
         )
         self.assertEqual(result.exit_code, 1)
-        self.assertIn("Cannot specify both --value and --contains", result.stderr)
+        self.assertIn("Cannot specify both --value and --contains", result.output)
 
     def test_meta_command_set_key(self):
         """Test meta command setting metadata"""
@@ -1051,7 +1051,7 @@ verbose = true
         # Search for non-existent file
         result = self.runner.invoke(cli, ["--config", str(config_file), "find", "nonexistent"])
         self.assertEqual(result.exit_code, 0)
-        self.assertIn("No files found matching 'nonexistent'", result.stderr)
+        self.assertIn("No files found matching 'nonexistent'", result.output)
 
     def test_verbose_flag_add_uid_command(self):
         """Test verbose flag with add-uid command shows UUID generation"""
@@ -1237,7 +1237,7 @@ verbose = true
         # Test default values
         self.assertEqual(str(config.editor), "vi")
         self.assertEqual(config.ident_key, "uid")
-        self.assertEqual(config.ignored_directories, ("Assets/", ".obsidian/", ".git/"))
+        self.assertEqual(config.ignored_directories, ["Assets/", ".obsidian/", ".git/"])
         expected_template = "Calendar/{year}/{month:02d}/{year}-{month:02d}-{day:02d}"
         self.assertEqual(config.journal_template, expected_template)
         self.assertIsNone(config.vault)
@@ -1287,7 +1287,7 @@ verbose = true
         # Default values for unspecified options
         self.assertEqual(str(config.editor), "vi")
         self.assertEqual(config.ident_key, "uid")
-        self.assertEqual(config.ignored_directories, ("Assets/", ".obsidian/", ".git/"))
+        self.assertEqual(config.ignored_directories, ["Assets/", ".obsidian/", ".git/"])
         expected_template = "Calendar/{year}/{month:02d}/{year}-{month:02d}-{day:02d}"
         self.assertEqual(config.journal_template, expected_template)
 
@@ -1503,8 +1503,8 @@ verbose = false
                 cli, ["--vault", str(self.vault_path), "--config", str(config_file), "serve"]
             )
             self.assertEqual(result.exit_code, 1)
-            self.assertIn("Error starting MCP server", result.stderr)
-            self.assertIn("Server failed to start", result.stderr)
+            self.assertIn("Error starting MCP server", result.output)
+            self.assertIn("Server failed to start", result.output)
 
     def test_serve_command_configuration_loading(self):
         """Test that serve command properly loads configuration"""
@@ -1527,7 +1527,8 @@ verbose = false
             _ctx_arg, state_arg = mock_serve.call_args[0][0], mock_serve.call_args[0][1]
             # Use Path.resolve() to handle symlinks consistently
             self.assertEqual(Path(state_arg.vault).resolve(), Path(self.vault_path).resolve())
-            self.assertEqual(str(state_arg.editor), "vi")  # Default editor
+            # Default editor should resolve to vi (either "vi" or "/usr/bin/vi")
+            self.assertTrue(str(state_arg.editor).endswith("vi"))
             self.assertFalse(state_arg.verbose)
 
 

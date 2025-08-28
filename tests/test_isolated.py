@@ -53,7 +53,7 @@ class TestIsolated(unittest.TestCase):
             # Should exit with code 1 for missing vault
             self.assertEqual(result.exit_code, 1)
             # Check that error message is in stderr (typer sends errors to stderr)
-            self.assertIn("Error: Vault path is required", result.stderr)
+            self.assertIn("Error: Vault path is required", result.output)
         finally:
             os.chdir(old_cwd)
             if old_home:

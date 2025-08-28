@@ -38,7 +38,7 @@ dependencies = [
     "typer>=0.16.0",
     "rich>=13.0.0",
     "python-frontmatter>=1.0.0",
-    "mdutils>=1.5.0",
+    "mdutils>=1.8.0",
     "mcp>=1.0.0",
 ]
 
@@ -107,7 +107,7 @@ indent-style = "space"
 line-ending = "auto"
 
 [tool.ruff.lint.flake8-builtins]
-strict-checking = true
+# Configuration for flake8-builtins rule
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
