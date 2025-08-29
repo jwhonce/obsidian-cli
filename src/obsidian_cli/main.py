@@ -110,6 +110,7 @@ except Exception:
     except Exception:
         __version__ = "0.1.12"  # Fallback version
 
+
 # Initialize Typer app
 cli = typer.Typer(
     add_completion=False,
@@ -143,38 +144,44 @@ class Configuration:
     vault: Path = None
     verbose: bool = False
 
-    @classmethod
-    def from_file(cls, path: Optional[Path], verbose: bool = False) -> "Configuration":
-        """Load configuration from a TOML file."""
-        config_data = None
+    config_dirs: list[Path] = field(
+        default_factory=lambda: [
+            Path("obsidian-cli.toml"),
+            (
+                Path(os.environ.get("XDG_CONFIG_HOME", "~/.config")).expanduser()
+                / "obsidian-cli"
+                / "config.toml"
+            ),
+        ]
+    )
 
+    @classmethod
+    def from_file(cls, path: Optional[Path] = None, verbose: bool = False) -> "Configuration":
+        """Load configuration from a TOML file."""
+        default = cls()
+
+        config_data = None
         if path:
-            config_data = Configuration._load_toml_config(path, verbose)
+            config_data = cls._load_toml_config(path, verbose)
         else:
-            for config_path in [
-                "./obsidian-cli.toml",
-                "~/.config/obsidian-cli/config.toml",
-            ]:
-                expanded_path = Path(os.path.expanduser(config_path))
-                if expanded_path.exists():
-                    config_data = Configuration._load_toml_config(expanded_path, verbose)
+            # Search default locations
+            for config_path in default.config_dirs:
+                if config_path.exists():
+                    config_data = cls._load_toml_config(config_path, verbose)
                     break
 
         if config_data is None:
-            raise FileNotFoundError("No configuration file found.")
+            raise FileNotFoundError(
+                f"Configuration file(s) {':'.join([str(p) for p in default.config_dirs])} not found"
+            )
 
         return cls(
-            editor=Path(config_data.get("editor", "vi")),
-            ident_key=config_data.get("ident_key", "uid"),
-            ignored_directories=config_data.get(
-                "ignored_directories", ["Assets/", ".obsidian/", ".git/"]
-            ),
-            journal_template=config_data.get(
-                "journal_template",
-                "Calendar/{year}/{month:02d}/{year}-{month:02d}-{day:02d}",
-            ),
-            vault=Path(config_data.get("vault", None)),
-            verbose=config_data.get("verbose", False),
+            editor=Path(config_data.get("editor", default.editor)),
+            ident_key=config_data.get("ident_key", default.ident_key),
+            ignored_directories=config_data.get("ignored_directories", default.ignored_directories),
+            journal_template=config_data.get("journal_template", default.journal_template),
+            vault=Path(config_data.get("vault", default.vault)),
+            verbose=config_data.get("verbose", default.verbose),
         )
 
     @staticmethod
@@ -280,11 +287,14 @@ def main(
     ] = None,  # pyright: ignore[reportUnusedParameter]
 ) -> None:
     """CLI operations for interacting with an Obsidian Vault."""
+
+    # Configuration precedence:
+    #   command line args > environment variables > config file > coded defaults
     try:
         configuration = Configuration.from_file(config, verbose=verbose is True)
     except FileNotFoundError:
         if verbose is True:
-            typer.secho("No configuration file found, using defaults.", fg="yellow")
+            typer.secho("No configuration file found, using coded defaults.", fg="yellow")
         configuration = Configuration()
     except Exception as e:
         typer.secho(str(e), err=True, fg="red")
@@ -296,9 +306,8 @@ def main(
 
     # Apply configuration values if CLI arguments are not provided
     if vault is None:
-        vault_config = configuration.vault
-        if vault_config:
-            vault = Path(os.path.expanduser(vault_config))
+        if configuration.vault:
+            vault = Path(os.path.expanduser(configuration.vault))
 
     # Vault is required for all commands
     if vault is None:
@@ -313,9 +322,8 @@ def main(
         raise typer.Exit(code=1)
 
     if editor is None:
-        editor_config = configuration.editor
-        if editor_config:
-            editor = Path(os.path.expanduser(editor_config))
+        if configuration.editor:
+            editor = configuration.editor.expanduser()
 
     # Get ignored directories from command line, config, or defaults
     # (in order of precedence)
