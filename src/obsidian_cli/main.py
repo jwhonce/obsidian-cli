@@ -95,6 +95,7 @@ from typing import Annotated, Optional
 
 import frontmatter
 import typer
+from click import FileError
 from typing_extensions import Doc
 
 # Get version from package metadata or fallback
@@ -156,9 +157,7 @@ class Configuration:
             ]:
                 expanded_path = Path(os.path.expanduser(config_path))
                 if expanded_path.exists():
-                    config_data = Configuration._load_toml_config(
-                        expanded_path, verbose
-                    )
+                    config_data = Configuration._load_toml_config(expanded_path, verbose)
                     break
 
         if config_data is None:
@@ -270,7 +269,7 @@ def main(
             show_default=False,
         ),
     ] = None,
-    version: Annotated[  
+    version: Annotated[
         Optional[bool],
         typer.Option(
             "--version",
@@ -278,7 +277,7 @@ def main(
             is_eager=True,
             help="Show version and exit.",
         ),
-    ] = None, # pyright: ignore[reportUnusedParameter]
+    ] = None,  # pyright: ignore[reportUnusedParameter]
 ) -> None:
     """CLI operations for interacting with an Obsidian Vault."""
     try:
@@ -324,9 +323,7 @@ def main(
         ignored_dirs_list = list(configuration.ignored_directories)
     else:
         # Command line argument provided - split by colon
-        ignored_dirs_list = [
-            dir.strip() for dir in ignored_directories.split(":") if dir.strip()
-        ]
+        ignored_dirs_list = [dir.strip() for dir in ignored_directories.split(":") if dir.strip()]
 
     # Validate journal template
     journal_template = configuration.journal_template
@@ -377,13 +374,9 @@ def add_uid(
     """Add a unique ID to a page's frontmatter if it doesn't already have one."""
     state: State = ctx.obj
 
-    try:
-        # While the short cut of using Obsidian page names is convenient, it implies
-        #  we cannot use typer helpers to enforce validation.
-        filename = _resolve_path(page_or_path, state.vault)
-    except FileNotFoundError as e:
-        typer.secho(e, err=True, fg="red")
-        raise typer.Exit(code=2) from e
+    # While the short cut of using Obsidian page names is convenient, it implies
+    #  we cannot use typer helpers to enforce validation.
+    filename = _resolve_path(page_or_path, state.vault)
 
     try:
         # Use the helper function to get frontmatter to check if UID already exists
@@ -428,19 +421,15 @@ def cat(
 ) -> None:
     """Display the contents of a file in the Obsidian Vault."""
     state: State = ctx.obj
+    filename = _resolve_path(page_or_path, state.vault)
 
     try:
-        filename = _resolve_path(page_or_path, state.vault)
-
         if show_frontmatter:
             # Simply read and display the entire file
             typer.echo(filename.read_text())
         else:
             # Parse with frontmatter and only display the content / body
             typer.echo(frontmatter.load(filename).content)
-    except FileNotFoundError as e:
-        typer.secho(e, err=True, fg="red")
-        raise typer.Exit(code=2) from e
     except Exception as e:
         raise typer.Exit(code=1) from e
 
@@ -449,12 +438,7 @@ def cat(
 def edit(ctx: typer.Context, page_or_path: PAGE_FILE) -> None:
     """Edit any file in the Obsidian Vault with the configured editor."""
     state: State = ctx.obj
-
-    try:
-        filename = _resolve_path(page_or_path, state.vault)
-    except FileNotFoundError as e:
-        typer.secho(e, err=True, fg="red")
-        raise typer.Exit(code=2) from e
+    filename = _resolve_path(page_or_path, state.vault)
 
     try:
         # Open the file in the configured editor
@@ -473,9 +457,7 @@ def edit(ctx: typer.Context, page_or_path: PAGE_FILE) -> None:
         typer.secho(f"An error occurred while editing {filename}", err=True, fg="red")
         raise typer.Exit(code=1) from e
 
-    ctx.invoke(
-        meta, ctx=ctx, page_or_path=page_or_path, key="modified", value=datetime.now()
-    )
+    ctx.invoke(meta, ctx=ctx, page_or_path=page_or_path, key="modified", value=datetime.now())
 
 
 @cli.command()
@@ -599,9 +581,7 @@ def info(ctx: typer.Context) -> None:
     typer.echo(f"Editor: {vault_info['editor']}")
     typer.echo(f"Verbose: {vault_info['verbose']}")
     typer.echo(f"Ignored Directories: {':'.join(vault_info['ignored_directories'])}")
-    journal_template_info = (
-        f"{vault_info['journal_template']} => {vault_info['journal_path']}"
-    )
+    journal_template_info = f"{vault_info['journal_template']} => {vault_info['journal_path']}"
     typer.echo(f"Journal Template: {journal_template_info}")
     typer.echo(f"Version: {vault_info['version']}")
 
@@ -624,9 +604,7 @@ def journal(
         journal_path_str = state.journal_template.format(**template_vars)
         page_path = Path(journal_path_str)
     except KeyError as e:
-        typer.secho(
-            f"Invalid template variable in journal_template: {e}", err=True, fg="red"
-        )
+        typer.secho(f"Invalid template variable in journal_template: {e}", err=True, fg="red")
         raise typer.Exit(code=1) from e
     except Exception as e:
         typer.secho(f"Error formatting journal template: {e}", err=True, fg="red")
@@ -660,16 +638,14 @@ def meta(
     ] = None,
     value: Annotated[
         Optional[str],
-        typer.Option(
-            help="New metadata for given key. If unset, list current metadata of key."
-        ),
+        typer.Option(help="New metadata for given key. If unset, list current metadata of key."),
     ] = None,
 ) -> None:
     """View or update frontmatter metadata in a file."""
     state: State = ctx.obj
+    filename = _resolve_path(page_or_path, state.vault)
 
     try:
-        filename = _resolve_path(page_or_path, state.vault)
         post = _get_frontmatter(filename)
     except FileNotFoundError as e:
         typer.secho(e, err=True, fg="red")
@@ -734,9 +710,7 @@ def new(
         else:
             from mdutils.mdutils import MdUtils
 
-            md_file = MdUtils(
-                file_name=str(filename), title=title, title_header_style="atx"
-            )
+            md_file = MdUtils(file_name=str(filename), title=title, title_header_style="atx")
             post = frontmatter.Post(md_file.get_md_text())
 
         # Add frontmatter metadata
@@ -770,27 +744,19 @@ def query(
     key: Annotated[str, typer.Argument(help="Frontmatter key to query across Vault")],
     value: Annotated[
         Optional[str],
-        typer.Option(
-            help="Find pages where the key's metadata exactly matches this string"
-        ),
+        typer.Option(help="Find pages where the key's metadata exactly matches this string"),
     ] = None,
     contains: Annotated[
         Optional[str],
-        typer.Option(
-            help="Find pages where the key's metadata contains this substring"
-        ),
+        typer.Option(help="Find pages where the key's metadata contains this substring"),
     ] = None,
     exists: Annotated[
         bool,
-        typer.Option(
-            "--exists", help="Find pages where the key exists", show_default=False
-        ),
+        typer.Option("--exists", help="Find pages where the key exists", show_default=False),
     ] = False,
     missing: Annotated[
         bool,
-        typer.Option(
-            "--missing", help="Find pages where the key is missing", show_default=False
-        ),
+        typer.Option("--missing", help="Find pages where the key is missing", show_default=False),
     ] = False,
     format: Annotated[
         str,
@@ -815,9 +781,7 @@ def query(
 
     # Check for conflicting options
     if value is not None and contains is not None:
-        typer.secho(
-            "Error: Cannot specify both --value and --contains", err=True, fg="red"
-        )
+        typer.secho("Error: Cannot specify both --value and --contains", err=True, fg="red")
         raise typer.Exit(code=1)
 
     if state.verbose:
@@ -898,17 +862,10 @@ def rm(
 ) -> None:
     """Remove a file from the Obsidian Vault."""
     state: State = ctx.obj
-
-    try:
-        filename = _resolve_path(page_or_path, state.vault)
-    except FileNotFoundError as e:
-        typer.secho(e, err=True, fg="red")
-        raise typer.Exit(code=2) from e
+    filename = _resolve_path(page_or_path, state.vault)
 
     # Skip confirmation if force is True, otherwise ask for confirmation
-    if not force and not typer.confirm(
-        f"Are you sure you want to delete '{filename}'?"
-    ):
+    if not force and not typer.confirm(f"Are you sure you want to delete '{filename}'?"):
         typer.echo("Operation cancelled.")
         return
 
@@ -1045,9 +1002,7 @@ def _check_title_match(post: frontmatter.Post, search_name: str) -> bool:
     return False
 
 
-def _display_find_results(
-    matches: list[Path], page_name: str, verbose: bool, vault: Path
-) -> None:
+def _display_find_results(matches: list[Path], page_name: str, verbose: bool, vault: Path) -> None:
     """Display the results of the find command.
 
     Prints the matching file paths to stdout. In verbose mode, also attempts
@@ -1156,9 +1111,7 @@ def _display_query_results(
             raise ValueError(f"Unknown format type: {format_type}")
 
 
-def _find_matching_files(
-    vault: Path, search_name: str, exact_match: bool
-) -> list[Path]:
+def _find_matching_files(vault: Path, search_name: str, exact_match: bool) -> list[Path]:
     """Find files in the vault that match the search criteria.
 
     Searches through all markdown files in the vault and checks if they match
@@ -1283,7 +1236,9 @@ def _resolve_path(page_or_path: Path, vault: Path) -> Path:
     if filename.exists():
         return filename
 
-    raise FileNotFoundError(f"Page / File '{page_or_path}' not found.")
+    e = FileError(page_or_path, f"Page or File not found in vault: {vault}")
+    e.exit_code = 2
+    raise e
 
 
 def _update_metadata_key(
