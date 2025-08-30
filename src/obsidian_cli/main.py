@@ -82,6 +82,8 @@ Version: 0.1.12
 License: Apache License 2.0
 """
 
+import errno
+import logging
 import os
 import sys
 import tomllib
@@ -89,6 +91,7 @@ from asyncio import CancelledError
 from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import datetime
+from enum import StrEnum
 from pathlib import Path
 from shutil import get_terminal_size
 from typing import Annotated, Optional
@@ -96,6 +99,10 @@ from typing import Annotated, Optional
 import frontmatter
 import typer
 from click import FileError
+from colorama import Style
+from rich.console import Console
+from rich.markup import escape
+from rich.table import Table
 from typing_extensions import Doc
 
 # Get version from package metadata or fallback
@@ -117,6 +124,7 @@ cli = typer.Typer(
     help="Command-line interface for interacting with Obsidian.",
     context_settings={"max_content_width": get_terminal_size().columns},
 )
+logger = logging.getLogger(__name__)
 
 
 def _version(value: bool) -> None:
@@ -199,7 +207,7 @@ class Configuration:
             FileNotFoundError: When configuration file is not found
         """
         if not path.exists():
-            raise FileNotFoundError(f"Configuration file not found: {path}")
+            raise FileNotFoundError(errno.ENOENT, "Configuration file not found", str(path))
 
         if verbose:
             typer.echo(f"Parsing configuration from: {path}")
@@ -242,7 +250,7 @@ def main(
         typer.Option(
             help=(
                 "Path to the configuration file. "
-                "(default: ./obsidian-cli.toml:~/.config/obsidian-cli/config.toml)"
+                "[default: ./obsidian-cli.toml:~/.config/obsidian-cli/config.toml]"
             ),
             show_default=False,
         ),
@@ -254,7 +262,7 @@ def main(
             envvar="OBSIDIAN_BLACKLIST",
             help=(
                 "Colon-separated list of directory patterns to ignore. "
-                "(default: Assets/:.obsidian/:.git/)."
+                "[default: Assets/:.obsidian/:.git/]"
             ),
             show_default=False,
         ),
@@ -263,7 +271,7 @@ def main(
         Optional[Path],
         typer.Option(
             envvar="EDITOR",
-            help="Path for editor to use for editing journal entries (default: 'vi')",
+            help="Path for editor to use for editing journal entries [default: 'vi']",
             show_default=False,
         ),
     ] = None,
@@ -291,11 +299,11 @@ def main(
     # Configuration precedence:
     #   command line args > environment variables > config file > coded defaults
     try:
-        configuration = Configuration.from_file(config, verbose=verbose is True)
+        configuration = Configuration.from_file(config, verbose=(verbose is True))
     except FileNotFoundError:
-        if verbose is True:
-            typer.secho("No configuration file found, using coded defaults.", fg="yellow")
         configuration = Configuration()
+        if verbose is True:
+            logger.warn("No configuration file found, using coded defaults.")
     except Exception as e:
         typer.secho(str(e), err=True, fg="red")
         raise typer.Exit(code=2) from e
@@ -303,11 +311,12 @@ def main(
     # Get verbose setting from command line, config file, or default to False
     if verbose is None:
         verbose = configuration.verbose
+    logger.setLevel(logging.DEBUG if verbose else logging.WARN)
 
     # Apply configuration values if CLI arguments are not provided
     if vault is None:
         if configuration.vault:
-            vault = Path(os.path.expanduser(configuration.vault))
+            vault = configuration.vault.expanduser()
 
     # Vault is required for all commands
     if vault is None:
@@ -453,14 +462,14 @@ def edit(ctx: typer.Context, page_or_path: PAGE_FILE) -> None:
         import subprocess
 
         subprocess.call([state.editor, filename])
-    except FileNotFoundError:
+    except FileNotFoundError as e:
         typer.secho(
             f"Error: '{state.editor}' command not found. "
             f"Please ensure {state.editor} is installed and in your PATH.",
             err=True,
             fg="red",
         )
-        raise typer.Exit(code=2)  # noqa: B904
+        raise typer.Exit(code=2) from e
     except Exception as e:
         typer.secho(f"An error occurred while editing {filename}", err=True, fg="red")
         raise typer.Exit(code=1) from e
@@ -595,13 +604,9 @@ def info(ctx: typer.Context) -> None:
 
 
 @cli.command()
-def journal(
-    ctx: typer.Context,
-) -> None:
-    """Open today's journal entry in the Obsidian Vault.
-
-    (default: 'Calendar/{year}/{month:02d}/{year}-{month:02d}-{day:02d}')
-    """
+def journal(ctx: typer.Context) -> None:
+    """Open today's journal entry in the Obsidian Vault."""
+    # [default: 'Calendar/{year}/{month:02d}/{year}-{month:02d}-{day:02d}']
     state: State = ctx.obj
 
     # Prepare template variables using helper function
@@ -668,13 +673,13 @@ def meta(
         else:
             _update_metadata_key(post, filename, key, value, state.verbose)
 
-    except KeyError:
+    except KeyError as e:
         typer.secho(
             f"Key '{key}' not found in frontmatter of '{page_or_path}'",
             err=True,
             fg="red",
         )
-        raise typer.Exit(code=1)  # noqa: B904
+        raise typer.Exit(code=1) from e
     except Exception as e:
         raise typer.Exit(code=1) from e
 
@@ -683,7 +688,7 @@ def meta(
 def new(
     ctx: typer.Context,
     page_or_path: PAGE_FILE,
-    force: Annotated[bool, typer.Option(help="Overwrite existing file")] = False,
+    force: Annotated[bool, typer.Option(help="Overwrite existing file with new contents")] = False,
 ) -> None:
     """Create a new file in the Obsidian Vault."""
     state: State = ctx.obj
@@ -693,11 +698,12 @@ def new(
     filename = state.vault / page_or_path.with_suffix(".md")
     if filename.exists() and not force:
         typer.secho(f"File already exists: {filename}", err=True, fg="red")
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from FileExistsError(
+            errno.EEXIST, "File already exists", str(filename)
+        )
     elif filename.exists() and force:
-        typer.secho(
-            f"Overwriting existing file: {filename}", fg="yellow"
-        ) if state.verbose else None
+        if state.verbose:
+            typer.secho(f"Overwriting existing file: {filename}", fg="yellow")
 
     try:
         # Create parent directories if they don't exist
@@ -746,6 +752,13 @@ def new(
         raise typer.Exit(code=1) from e
 
 
+class QueryOutputStyle(StrEnum):
+    PATH = "path"
+    TITLE = "title"
+    TABLE = "table"
+    JSON = "json"
+
+
 @cli.command()
 def query(
     ctx: typer.Context,
@@ -767,13 +780,14 @@ def query(
         typer.Option("--missing", help="Find pages where the key is missing", show_default=False),
     ] = False,
     format: Annotated[
-        str,
+        QueryOutputStyle,
         typer.Option(
             "--format",
             "-f",
-            help="Output format styles (path, title, full, count, json)",
+            help="Output format styles (path, title, table, json)",
+            case_sensitive=False,
         ),
-    ] = "path",
+    ] = QueryOutputStyle.PATH,
     count: Annotated[
         bool,
         typer.Option(
@@ -804,10 +818,8 @@ def query(
             typer.echo("Filtering for key absence")
 
     # Find all markdown files in the vault
-    markdown_files = list(state.vault.rglob("*.md"))
     matches = []
-
-    for file_path in markdown_files:
+    for file_path in state.vault.rglob("*.md"):
         try:
             # Get relative path from vault root
             rel_path = file_path.relative_to(state.vault)
@@ -1063,7 +1075,7 @@ def _display_metadata_key(post: frontmatter.Post, key: str) -> None:
 
 
 def _display_query_results(
-    matches: list[tuple[Path, frontmatter.Post]], format_type: str, key: str
+    matches: list[tuple[Path, frontmatter.Post]], format_type: QueryOutputStyle, key: str
 ) -> None:
     """Display the results of a frontmatter query.
 
@@ -1071,7 +1083,7 @@ def _display_query_results(
 
     Args:
         matches: List of tuples containing (relative_path, post) for each match.
-        format_type: The output format to use ('path', 'title', 'full', or 'json').
+        format_type: The output format to use ('path', 'title', 'table', or 'json').
         key: The frontmatter key that was queried.
 
     Returns:
@@ -1083,23 +1095,31 @@ def _display_query_results(
         return
 
     match format_type:
-        case "path":
+        case QueryOutputStyle.PATH:
             for rel_path, _ in sorted(matches, key=lambda x: x[0]):
                 typer.echo(rel_path)
 
-        case "title":
+        case QueryOutputStyle.TITLE:
             for rel_path, post in sorted(matches, key=lambda x: x[0]):
                 title = post.metadata.get("title", rel_path.stem)
                 typer.echo(f"{rel_path}: {title}")
 
-        case "full":
-            for rel_path, post in sorted(matches, key=lambda x: x[0]):
-                typer.echo(f"{rel_path}:")
-                for k, v in post.metadata.items():
-                    typer.echo(f"  {k}: {v}")
-                typer.echo("")
+        case QueryOutputStyle.TABLE:
+            table = Table(show_header=True, header_style="bold")
+            table.add_column("Path", style="cyan", header_style="bold cyan")
+            table.add_column("Property")
+            table.add_column("Value")
 
-        case "json":
+            for rel_path, post in sorted(matches, key=lambda x: x[0]):
+                page = str(rel_path)
+                for k, v in post.metadata.items():
+                    table.add_row(page, k, escape(str(v)))
+                    page = None  # Only show path on first row of section
+                table.add_row(end_section=True)
+            table.caption = f"Total matches: {len(matches)}"
+            Console().print(table)
+
+        case QueryOutputStyle.JSON:
             # Build a JSON-friendly structure
             result = []
             for rel_path, post in matches:
@@ -1116,7 +1136,10 @@ def _display_query_results(
             typer.echo(json.dumps(result, indent=2, default=str))
 
         case _:
-            raise ValueError(f"Unknown format type: {format_type}")
+            raise ValueError(
+                f"Unknown format type: {format_type}."
+                f" Supported types: {', '.join([e.value for e in QueryOutputStyle])}"
+            )
 
 
 def _find_matching_files(vault: Path, search_name: str, exact_match: bool) -> list[Path]:
@@ -1179,7 +1202,7 @@ def _get_frontmatter(filename: Path) -> frontmatter.Post:
     try:
         return frontmatter.load(filename)
     except FileNotFoundError as e:
-        raise FileNotFoundError(f"File '{filename}' does not exist.") from e
+        raise FileNotFoundError(e.errno, "Page or File does not exist.", filename) from None
 
 
 def _get_journal_template_vars() -> dict[str, str | int]:
@@ -1278,5 +1301,25 @@ def _update_metadata_key(
         typer.echo(f"Updated '{key}': '{value}' in {filename}")
 
 
+class TyperLoggerHandler(logging.Handler):
+    def emit(self, record: logging.LogRecord) -> None:
+        (fg, bg) = (None, None)
+        match record.levelno:
+            case logging.DEBUG:
+                fg = typer.colors.BLACK
+            case logging.INFO:
+                fg = typer.colors.BRIGHT_BLUE
+            case logging.WARNING:
+                fg = typer.colors.BRIGHT_MAGENTA
+            case logging.CRITICAL:
+                fg = typer.colors.BRIGHT_RED
+            case logging.ERROR:
+                fg = typer.colors.BRIGHT_WHITE
+                bg = typer.colors.RED
+        typer.secho(self.format(record), bg=bg, fg=fg)
+
+
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.NOTSET, handlers=(TyperLoggerHandler(),))
+
     cli()
