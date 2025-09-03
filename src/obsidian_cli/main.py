@@ -83,6 +83,7 @@ License: Apache License 2.0
 """
 
 import errno
+import json
 import logging
 import os
 import sys
@@ -94,12 +95,11 @@ from datetime import datetime
 from enum import StrEnum
 from pathlib import Path
 from shutil import get_terminal_size
-from typing import Annotated, Optional
+from typing import Annotated, Any, Optional, Union
 
 import frontmatter
 import typer
 from click import FileError
-from colorama import Style
 from rich.console import Console
 from rich.markup import escape
 from rich.table import Table
@@ -193,7 +193,7 @@ class Configuration:
         )
 
     @staticmethod
-    def _load_toml_config(path: Path, verbose: bool = False) -> dict:
+    def _load_toml_config(path: Path, verbose: bool = False) -> dict[str, Any]:
         """Load TOML configuration from the specified path or default locations.
 
         Args:
@@ -507,7 +507,7 @@ def find(
     _display_find_results(matches, page_name, state.verbose, state.vault)
 
 
-def _get_vault_info(state) -> dict:
+def _get_vault_info(state: Union[Path, str]) -> dict[str, Any]:
     """Get vault information as structured data.
 
     Args:
@@ -516,6 +516,8 @@ def _get_vault_info(state) -> dict:
     Returns:
         Dictionary containing vault information
     """
+
+    # MCP server uses this function with state.vault as a string
     vault_path = Path(state.vault)
 
     if not vault_path.exists():
@@ -525,11 +527,11 @@ def _get_vault_info(state) -> dict:
             "exists": False,
         }
 
-    def _walk_vault(vault_path: Path):
+    def _walk_vault(path: Path):
         """Recursively walks a directory and yields Path objects for directories and files."""
-        yield vault_path
+        yield path
 
-        for entry in vault_path.iterdir():
+        for entry in path.iterdir():
             if entry.is_dir():
                 # Recursively call for subdirectories
                 yield from _walk_vault(entry)
@@ -753,10 +755,10 @@ def new(
 
 
 class QueryOutputStyle(StrEnum):
-    PATH = "path"
-    TITLE = "title"
-    TABLE = "table"
     JSON = "json"
+    PATH = "path"
+    TABLE = "table"
+    TITLE = "title"
 
 
 @cli.command()
@@ -781,12 +783,7 @@ def query(
     ] = False,
     format: Annotated[
         QueryOutputStyle,
-        typer.Option(
-            "--format",
-            "-f",
-            help="Output format styles (path, title, table, json)",
-            case_sensitive=False,
-        ),
+        typer.Option("--format", "-f", help="Output format style", case_sensitive=False),
     ] = QueryOutputStyle.PATH,
     count: Annotated[
         bool,
@@ -1115,7 +1112,7 @@ def _display_query_results(
                 for k, v in post.metadata.items():
                     table.add_row(page, k, escape(str(v)))
                     page = None  # Only show path on first row of section
-                table.add_row(end_section=True)
+                table.add_section()
             table.caption = f"Total matches: {len(matches)}"
             Console().print(table)
 
@@ -1130,8 +1127,6 @@ def _display_query_results(
                 if key in post.metadata:
                     entry["value"] = post.metadata[key]
                 result.append(entry)
-
-            import json
 
             typer.echo(json.dumps(result, indent=2, default=str))
 
