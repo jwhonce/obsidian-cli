@@ -1,210 +1,282 @@
 # Command Reference
 
-This document provides detailed information on all available commands in obsidian-cli.
+This document provides detailed information about all available commands in obsidian-cli.
 
 ## Global Options
 
-These options can be used with any command:
+All commands support these global options:
 
-- `--config PATH`: Path to the configuration file
-- `--vault PATH`: Path to the Obsidian vault
-- `--editor PATH`: Editor to use for editing journal entries (default: 'vi')
-- `--verbose, -v`: Enable verbose output
-- `--version`: Show version and exit
-- `--help`: Show help message and exit
+- `--vault PATH` - Specify the vault directory (required if not in config)
+- `--config PATH` - Specify configuration file path
+- `--verbose` - Enable verbose output
+- `--help` - Show help information
 
 ## Commands
 
 ### add-uid
 
-Add a unique ID to a page's frontmatter if it doesn't already have one.
+Add unique identifiers to notes that don't already have them.
 
 ```bash
-obsidian-cli add-uid PAGE_OR_FILE [--force]
+obsidian-cli add-uid [OPTIONS] [PAGES]...
 ```
 
-Options:
+**Options:**
 
-- `--force`: Replace existing UID if one exists
+- `--force, -f` - Skip confirmation prompt and add UIDs to all specified notes
+- `--dry-run` - Show what would be done without making changes
 
-### cat
-
-Display the contents of a file in the Obsidian Vault.
+**Examples:**
 
 ```bash
-obsidian-cli cat PAGE_OR_FILE [--show-frontmatter]
+# Add UIDs to all notes
+obsidian-cli add-uid
+
+# Add UID to specific note
+obsidian-cli add-uid "My Note.md"
+
+# Force add UIDs without confirmation
+obsidian-cli add-uid --force
 ```
-
-Options:
-
-- `--show-frontmatter`: Show the YAML frontmatter at the beginning of the file
 
 ### edit
 
-Edit any file in the Obsidian Vault with the configured editor.
+Open a note in your configured editor.
 
 ```bash
-obsidian-cli edit PAGE_OR_FILE
+obsidian-cli edit [OPTIONS] PAGE_OR_PATH
 ```
 
-### find
+**Arguments:**
 
-Find files in the vault that match the given page name.
+- `PAGE_OR_PATH` - Note title or file path to edit
 
-```bash
-obsidian-cli find PAGE_NAME [--exact]
-```
-
-Options:
-
-- `--exact, -e`: Require exact match on page name
-
-### info
-
-Display information about the current Obsidian Vault and configuration.
+**Examples:**
 
 ```bash
-obsidian-cli info
+# Edit by title
+obsidian-cli edit "My Note"
+
+# Edit by path
+obsidian-cli edit "Projects/idea.md"
 ```
 
 ### journal
 
-Open today's journal entry in the Obsidian Vault. The journal file must already exist.
+Open today's journal entry or a journal for a specific date.
 
 ```bash
+obsidian-cli journal [OPTIONS]
+```
+
+**Options:**
+
+- `--date, -d TEXT` - Date for journal entry (YYYY-MM-DD format). Defaults to today.
+
+**Examples:**
+
+```bash
+# Open today's journal
 obsidian-cli journal
+
+# Open journal for specific date
+obsidian-cli journal --date 2025-01-15
 ```
 
-The journal command uses a configurable template to determine the path to today's journal file. By default, it looks for files matching the pattern: `Calendar/{year}/{month:02d}/{year}-{month:02d}-{day:02d}.md`
+### ls
 
-If the journal file doesn't exist, the command will exit with an error. Use the `new` command to create journal files first:
+List all notes in the vault.
 
 ```bash
-# Create today's journal file first
-obsidian-cli new "Calendar/2025/08/2025-08-20"
-
-# Then open it with the journal command
-obsidian-cli journal
+obsidian-cli ls [OPTIONS]
 ```
 
-The journal template can be customized in the configuration file using the `journal_template` setting.
+**Options:**
 
-### meta / frontmatter
+- `--format, -f [path|title|full]` - Output format (default: path)
 
-View or update frontmatter metadata in a file. These commands are aliases of each other.
+**Examples:**
 
 ```bash
-obsidian-cli meta PAGE_OR_FILE [KEY] [VALUE]
-obsidian-cli frontmatter PAGE_OR_FILE [KEY] [VALUE]
+# List all notes (paths only)
+obsidian-cli ls
+
+# List with titles
+obsidian-cli ls --format title
+
+# List with full metadata
+obsidian-cli ls --format full
 ```
-
-Behavior:
-
-- If neither KEY nor VALUE is provided, lists all frontmatter metadata
-- If only KEY is provided, displays the current value of that key
-- If both KEY and VALUE are provided, updates the key with the new value
 
 ### new
 
-Create a new file in the Obsidian Vault.
+Create a new note with optional frontmatter.
 
 ```bash
-obsidian-cli new PAGE_OR_FILE [--force]
+obsidian-cli new [OPTIONS] TITLE
 ```
 
-Options:
+**Arguments:**
 
-- `--force, -f`: Overwrite existing file if it exists
+- `TITLE` - Title of the new note
+
+**Options:**
+
+- `--force, -f` - Overwrite existing file if it exists
+- `--tags TEXT` - Comma-separated list of tags
+- `--status TEXT` - Status value for the note
+- `--category TEXT` - Category for the note
+- `--template PATH` - Path to template file to use
+
+**Examples:**
+
+```bash
+# Create a simple note
+obsidian-cli new "My New Note"
+
+# Create with frontmatter
+obsidian-cli new "Project Plan" --tags project,planning --status active
+
+# Create from template
+obsidian-cli new "Meeting Notes" --template templates/meeting.md
+```
 
 ### query
 
-Query frontmatter across all files in the vault. Files in configured ignored directories are automatically excluded from the search.
+Search and filter notes by frontmatter properties.
 
 ```bash
-obsidian-cli query KEY [OPTIONS]
+obsidian-cli query [OPTIONS] KEY
 ```
 
-Options:
+**Arguments:**
 
-- `--value VALUE`: Find files where the key exactly matches this value
-- `--contains STRING`: Find files where the key's value contains this substring
-- `--exists`: Find files where the key exists (regardless of value)
-- `--missing`: Find files where the key does not exist
-- `--format, -f FORMAT`: Output format (path, title, full, count, json)
-- `--count, -c`: Only show count of matching files
+- `KEY` - Frontmatter key to query across vault
 
-**Note:** The query command respects the `ignored_directories` configuration setting, automatically excluding files from specified directory patterns (e.g., archives, assets, system directories).
+**Options:**
+
+- `--value TEXT` - Find pages where the key's metadata exactly matches this string
+- `--contains TEXT` - Find pages where the key's metadata contains this substring
+- `--exists` - Find pages where the key exists
+- `--missing` - Find pages where the key is missing
+- `--format, -f [path|title|full|count|json]` - Output format styles (default: path)
+- `--count, -c` - Only show count of matching pages
+- `--group-by, -g TEXT` - Group results by the specified frontmatter property
+
+**Examples:**
+
+```bash
+# Find notes with specific status
+obsidian-cli query status --value active
+
+# Find notes containing text in title
+obsidian-cli query title --contains project
+
+# Count notes by status
+obsidian-cli query status --exists --count
+
+# Group notes by category
+obsidian-cli query status --exists --group-by category
+
+# JSON output for scripting
+obsidian-cli query tags --exists --format json
+```
 
 ### rm
 
-Remove a file from the Obsidian Vault.
+Remove notes from the vault.
 
 ```bash
-obsidian-cli rm PAGE_OR_FILE [--force]
+obsidian-cli rm [OPTIONS] PAGES...
 ```
 
-Options:
+**Arguments:**
 
-- `--force, -f`: Skip confirmation prompt and delete immediately
+- `PAGES` - Note titles or file paths to remove
+
+**Options:**
+
+- `--force, -f` - Skip confirmation prompt
+
+**Examples:**
+
+```bash
+# Remove a note (with confirmation)
+obsidian-cli rm "Old Note"
+
+# Remove multiple notes
+obsidian-cli rm "Note 1" "Note 2" "Note 3"
+
+# Force removal without confirmation
+obsidian-cli rm --force "Temporary Note"
+```
 
 ### serve
 
-Start an MCP (Model Context Protocol) server for the vault.
+Start MCP server for AI assistant integration.
 
 ```bash
-obsidian-cli serve
+obsidian-cli serve [OPTIONS]
 ```
 
-The serve command starts an MCP server that exposes vault operations as tools that can be used by AI assistants and other MCP clients. The server communicates over stdio using the MCP protocol and enables seamless integration between AI systems and your Obsidian vault.
+The server exposes these MCP tools:
 
-**Key Features:**
+- `create_note` - Create new notes with frontmatter
+- `find_notes` - Search notes by various criteria
+- `get_note_content` - Retrieve note content and metadata
+- `get_vault_info` - Get vault statistics and information
 
-- **Standardized AI Integration**: Uses the open MCP protocol for broad compatibility with AI assistants
-- **Real-time Vault Access**: AI assistants can create, read, search, and analyze notes in real-time
-- **Secure Local Operation**: All communication occurs locally via stdio with no external network access
-- **Production Ready**: Robust error handling and comprehensive test coverage
-
-**Available MCP Tools:**
-
-- `create_note`: Create new notes with frontmatter, content, and force options
-- `find_notes`: Search for notes by name or title with exact/fuzzy matching
-- `get_note_content`: Retrieve note content with optional frontmatter inclusion
-- `get_vault_info`: Get comprehensive vault statistics and configuration information
-
-**Example Usage:**
+**Examples:**
 
 ```bash
-# Start MCP server with vault from config
+# Start MCP server
 obsidian-cli serve
 
-# Start with specific vault path
-obsidian-cli --vault /path/to/vault serve
-
-# Start with verbose logging for debugging
-obsidian-cli --verbose serve
+# Use with AI assistant (Claude Desktop example)
+# Add to Claude Desktop config:
+# {
+#   "mcpServers": {
+#     "obsidian": {
+#       "command": "obsidian-cli",
+#       "args": ["serve"]
+#     }
+#   }
+# }
 ```
 
-**Server Behavior:**
+### version
 
-- Runs indefinitely until interrupted (Ctrl+C) or terminated by the MCP client
-- Uses the configured vault path and settings from your configuration file or command-line options
-- Provides detailed logging when verbose mode is enabled
-- Handles client connections and disconnections gracefully
+Display version information.
 
-**AI Assistant Integration:**
+```bash
+obsidian-cli version
+```
 
-The MCP server enables AI assistants to:
+**Examples:**
 
-- Create structured notes from conversation context
-- Search and analyze existing vault content
-- Maintain vault organization and consistency
-- Generate summaries and reports from vault data
-- Provide intelligent note recommendations and linking
+```bash
+# Show version
+obsidian-cli version
+```
 
-For detailed setup instructions, configuration options, and integration examples, see the [MCP Integration Guide](mcp-integration.md).
+## Configuration Integration
 
-**Requirements:**
+All commands respect the configuration file settings. You can override any configuration value using command-line options:
 
-- MCP dependencies: `pip install mcp>=1.0.0`
-- Valid vault path configuration
-- Appropriate file system permissions for the vault directory
+```bash
+# Override vault setting
+obsidian-cli --vault /different/vault ls
+
+# Enable verbose mode
+obsidian-cli --verbose query status --exists
+```
+
+## Error Handling
+
+Commands provide clear error messages and appropriate exit codes:
+
+- `0` - Success
+- `1` - General error (invalid arguments, configuration issues)
+- `2` - File not found or validation error
+
+Use `--verbose` flag for detailed error information and debugging.

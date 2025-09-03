@@ -1,145 +1,263 @@
 # Configuration Guide
 
-obsidian-cli offers multiple ways to configure your settings, providing flexibility for different workflows and environments.
+This document explains how to configure obsidian-cli for your workflow.
+
+## Configuration File Locations
+
+obsidian-cli searches for configuration files in this order:
+
+1. Path specified with `--config` option
+2. `obsidian-cli.toml` in the current directory
+3. `~/.config/obsidian-cli/config.toml` (or `$XDG_CONFIG_HOME/obsidian-cli/config.toml`)
+
+If no configuration file is found, obsidian-cli uses default settings. In this case, you must specify the vault path using the `--vault` option.
+
+## Configuration Format
+
+obsidian-cli uses TOML configuration files. Here's a complete example:
+
+```toml
+# Path to your Obsidian vault
+vault = "/path/to/your/obsidian/vault"
+
+# Editor command for opening files
+editor = "code"
+
+# Key used for unique identifiers in frontmatter
+ident_key = "uid"
+
+# Directories to ignore during queries and operations
+ignored_directories = ["Assets/", ".obsidian/", ".git/", "Templates/"]
+
+# Template for journal file paths
+journal_template = "Calendar/{year}/{month:02d}/{year}-{month:02d}-{day:02d}"
+
+# Enable verbose output by default
+verbose = false
+```
 
 ## Configuration Options
 
-The following options can be configured:
+### vault
 
-| Option                | Description                                        | Default                    |
-| --------------------- | -------------------------------------------------- | -------------------------- |
-| `vault`               | Path to your Obsidian vault                        | None                       |
-| `editor`              | Editor to use for opening files                    | 'vi'                       |
-| `verbose`             | Whether to display verbose output                  | False                      |
-| `ident_key`           | Frontmatter key for unique identifiers             | 'uid'                      |
-| `ignored_directories` | List of directory patterns to exclude from queries | See default patterns below |
-| `journal_template`    | Template for journal file paths                    | See template section below |
+**Type:** String (path)
+**Required:** Yes (either in config or via `--vault` option)
+**Description:** Path to your Obsidian vault directory.
 
-## Configuration Methods (in order of precedence)
+```toml
+vault = "/Users/username/Documents/MyVault"
+```
 
-1. Command line arguments
-2. Environment variables
-3. Configuration file
-4. Default values
+### editor
 
-## Command Line Arguments
+**Type:** String
+**Default:** `"vi"`
+**Description:** Command to use for opening files with the `edit` command.
 
-Command line arguments take precedence over all other configuration methods:
+```toml
+# VS Code
+editor = "code"
 
-```bash
-obsidian-cli --vault ~/Documents/MyVault --editor code info
+# Vim
+editor = "vim"
+
+# Neovim
+editor = "nvim"
+
+# Emacs
+editor = "emacs"
+
+# System default
+editor = "open"  # macOS
+editor = "xdg-open"  # Linux
+```
+
+### ident_key
+
+**Type:** String
+**Default:** `"uid"`
+**Description:** Frontmatter key used for unique identifiers by the `add-uid` command.
+
+```toml
+ident_key = "id"
+# or
+ident_key = "uuid"
+# or
+ident_key = "note_id"
+```
+
+### ignored_directories
+
+**Type:** Array of strings
+**Default:** `["Assets/", ".obsidian/", ".git/"]`
+**Description:** Directories to exclude from `query`, `ls`, and other vault operations.
+
+```toml
+ignored_directories = [
+    "Assets/",
+    ".obsidian/",
+    ".git/",
+    "Templates/",
+    "Archive/",
+    "_drafts/"
+]
+```
+
+### journal_template
+
+**Type:** String
+**Default:** `"Calendar/{year}/{month:02d}/{year}-{month:02d}-{day:02d}"`
+**Description:** Template for generating journal file paths. Supports various date formatting variables.
+
+#### Template Variables
+
+- `{year}` - Four-digit year (e.g., 2025)
+- `{month}` - Month number (1-12)
+- `{month:02d}` - Zero-padded month (01-12)
+- `{day}` - Day number (1-31)
+- `{day:02d}` - Zero-padded day (01-31)
+- `{month_name}` - Full month name (e.g., January)
+- `{month_abbr}` - Abbreviated month (e.g., Jan)
+- `{weekday}` - Full weekday name (e.g., Monday)
+- `{weekday_abbr}` - Abbreviated weekday (e.g., Mon)
+
+#### Template Examples
+
+```toml
+# Default format: Calendar/2025/01/2025-01-15.md
+journal_template = "Calendar/{year}/{month:02d}/{year}-{month:02d}-{day:02d}"
+
+# Simple daily notes: Daily/2025-01-15.md
+journal_template = "Daily/{year}-{month:02d}-{day:02d}"
+
+# Monthly organization: Journal/2025/January/15.md
+journal_template = "Journal/{year}/{month_name}/{day}"
+
+# Weekly organization: Weekly/2025/Week-03/Monday.md
+journal_template = "Weekly/{year}/Week-{week:02d}/{weekday}"
+
+# Flat structure with weekday: Journal/Monday-2025-01-15.md
+journal_template = "Journal/{weekday}-{year}-{month:02d}-{day:02d}"
+```
+
+### verbose
+
+**Type:** Boolean
+**Default:** `false`
+**Description:** Enable verbose output by default.
+
+```toml
+verbose = true
 ```
 
 ## Environment Variables
 
-If command line arguments are not provided, environment variables are used:
+You can override configuration values using environment variables:
 
-- `OBSIDIAN_VAULT`: Path to your Obsidian vault
-- `EDITOR`: Editor to use for opening files
-
-```bash
-# Set for current session
-export OBSIDIAN_VAULT=~/Documents/MyVault
-export EDITOR=code
-
-# Or inline for a single command
-OBSIDIAN_VAULT=~/Documents/MyVault obsidian-cli info
-```
-
-## Configuration File
-
-If neither command line arguments nor environment variables are set, obsidian-cli looks for configuration in TOML files.
-
-Files are checked in the following order:
-
-1. `./obsidian-cli.toml` (current working directory)
-2. `~/.config/obsidian-cli/config.toml` (user config directory)
-
-You can also specify a custom configuration file:
+- `OBSIDIAN_VAULT` - Override vault path
+- `OBSIDIAN_EDITOR` - Override editor command
+- `XDG_CONFIG_HOME` - Change config directory location (Linux/macOS)
 
 ```bash
-obsidian-cli --config ~/my-custom-config.toml info
+# Use different vault for this session
+export OBSIDIAN_VAULT="/path/to/different/vault"
+obsidian-cli ls
+
+# Use different editor
+export OBSIDIAN_EDITOR="vim"
+obsidian-cli edit "My Note"
 ```
 
-### Example Configuration File
+## Command-Line Overrides
+
+Any configuration option can be overridden via command-line flags:
+
+```bash
+# Override vault setting
+obsidian-cli --vault /different/vault ls
+
+# Enable verbose mode for one command
+obsidian-cli --verbose query status --exists
+
+# Use different config file
+obsidian-cli --config /path/to/custom.toml ls
+```
+
+## Configuration Validation
+
+obsidian-cli validates configuration on startup:
+
+- **vault**: Must be a valid directory path
+- **editor**: Must be a valid command (checked when used)
+- **ignored_directories**: Must be an array of strings
+- **journal_template**: Must be a valid format string
+
+Invalid configurations will show clear error messages with suggestions for fixes.
+
+## Examples by Use Case
+
+### Academic Research
 
 ```toml
-# obsidian-cli.toml
-vault = "~/Documents/ObsidianVault"
-editor = "vim"
+vault = "/Users/researcher/Research"
+editor = "obsidian"  # Open in Obsidian app
+ident_key = "paper_id"
+ignored_directories = ["Assets/", ".obsidian/", ".git/", "PDFs/", "Data/"]
+journal_template = "Daily/{year}-{month:02d}-{day:02d}"
+verbose = true
+```
+
+### Software Development
+
+```toml
+vault = "/Users/dev/notes"
+editor = "code"
+ident_key = "note_id"
+ignored_directories = ["Assets/", ".obsidian/", ".git/", "attachments/"]
+journal_template = "Journal/{year}/Week-{week:02d}/{weekday}"
 verbose = false
+```
+
+### Personal Knowledge Management
+
+```toml
+vault = "/Users/person/SecondBrain"
+editor = "obsidian"
 ident_key = "uid"
-ignored_directories = [
-  ".obsidian/",
-  ".git/",
-  "Templates/",
-  "Attachments/"
-]
-journal_template = "Calendar/{year}/{month:02d}/{year}-{month:02d}-{day:02d}"
+ignored_directories = ["Assets/", ".obsidian/", ".git/", "Templates/", "Archive/"]
+journal_template = "Calendar/{year}/{month_name}/{day:02d}-{weekday_abbr}"
+verbose = false
 ```
 
-### Configuration Details
+## Troubleshooting
 
-#### ignored_directories
+### Common Issues
 
-The `ignored_directories` option allows you to specify directory patterns that should be excluded from query operations. This is useful for:
+1. **"No vault specified"**
 
-- Excluding archived or historical content (`Content/Archives/`)
-- Skipping asset directories (`Assets/`, `Attachments/`)
-- Avoiding system directories (`.obsidian/`, `.git/`)
-- Filtering out template directories (`Templates/`)
+   - Add `vault` to your config file or use `--vault` option
 
-Patterns are matched against the beginning of relative file paths within your vault. For example, if you have a file at `Content/Archives/old-note.md`, it will be excluded because it starts with `Content/Archives/`.
+2. **"Configuration file not found"**
 
-#### ident_key
+   - obsidian-cli will use defaults; this is normal if you haven't created a config file
 
-The `ident_key` option specifies which frontmatter key to use for unique identifiers when creating new files or adding UIDs to existing files. This allows customization of the identifier field name to match your vault's conventions.
+3. **"Invalid journal template"**
 
-For example, if you prefer to use `id` instead of the default `uid`:
+   - Check that your template uses valid variable names and format specifiers
 
-```toml
-ident_key = "id"
+4. **"Editor command not found"**
+   - Ensure your editor is installed and in your PATH
+
+### Debug Configuration
+
+Use the verbose flag to see which configuration file is being used:
+
+```bash
+obsidian-cli --verbose ls
 ```
 
-#### journal_template
+This will show:
 
-The `journal_template` option specifies the path template for journal files. The template supports the following variables:
-
-- `{year}`: 4-digit year (e.g., 2025)
-- `{month}`: Month number (1-12)
-- `{month:02d}`: Zero-padded month (01-12)
-- `{day}`: Day number (1-31)
-- `{day:02d}`: Zero-padded day (01-31)
-- `{month_name}`: Full month name (e.g., January)
-- `{month_abbr}`: Abbreviated month (e.g., Jan)
-- `{weekday}`: Full weekday name (e.g., Monday)
-- `{weekday_abbr}`: Abbreviated weekday (e.g., Mon)
-
-Example templates:
-
-```toml
-# Default template
-journal_template = "Calendar/{year}/{month:02d}/{year}-{month:02d}-{day:02d}"
-
-# Alternative formats
-journal_template = "Daily Notes/{year}-{month:02d}-{day:02d} {weekday}"
-journal_template = "Journal/{month_name} {year}/{day:02d} - {weekday}"
-journal_template = "Notes/{year}/{month_abbr}/{day:02d}"
-```
-
-**Default ignored directories:**
-
-- `.obsidian/`
-- `.git/`
-
-## Default Values
-
-If no configuration is found, the following defaults are used:
-
-- `editor`: 'vi'
-- `verbose`: False
-- `ident_key`: 'uid'
-- `ignored_directories`: `[".obsidian/", ".git/"]`
-- `journal_template`: 'Calendar/{year}/{month:02d}/{year}-{month:02d}-{day:02d}'
-
-Note: `vault` has no default and must be specified through one of the above methods.
+- Which configuration file was loaded (if any)
+- Final configuration values being used
+- Any configuration validation warnings

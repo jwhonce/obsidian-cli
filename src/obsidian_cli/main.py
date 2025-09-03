@@ -49,7 +49,7 @@ Configuration:
     The tool can be configured using an obsidian-cli.toml file which should contain:
 
     ```toml
-    editor = "vim"
+    editor = "vi"
     ident_key = "uid"
     ignored_directories = ["Assets/", ".obsidian/", ".git/"]
     journal_template = "Calendar/{year}/{month:02d}/{year}-{month:02d}-{day:02d}"
@@ -78,7 +78,7 @@ Configuration:
     - {weekday_abbr}: Abbreviated weekday (e.g., Mon)
 
 Author: Jhon Honce / Copilot enablement
-Version: 0.1.12
+Version: 0.1.14
 License: Apache License 2.0
 """
 
@@ -115,7 +115,7 @@ except Exception:
     try:
         from . import __version__
     except Exception:
-        __version__ = "0.1.12"  # Fallback version
+        __version__ = "0.1.14"  # Fallback version
 
 
 # Initialize Typer app
@@ -149,7 +149,7 @@ class Configuration:
         default_factory=lambda: ["Assets/", ".obsidian/", ".git/"]
     )
     journal_template: str = "Calendar/{year}/{month:02d}/{year}-{month:02d}-{day:02d}"
-    vault: Path = None
+    vault: Optional[Path] = None
     verbose: bool = False
 
     config_dirs: list[Path] = field(
@@ -168,7 +168,7 @@ class Configuration:
         """Load configuration from a TOML file."""
         default = cls()
 
-        config_data = None
+        config_data = {}
         if path:
             config_data = cls._load_toml_config(path, verbose)
         else:
@@ -178,17 +178,12 @@ class Configuration:
                     config_data = cls._load_toml_config(config_path, verbose)
                     break
 
-        if config_data is None:
-            raise FileNotFoundError(
-                f"Configuration file(s) {':'.join([str(p) for p in default.config_dirs])} not found"
-            )
-
         return cls(
             editor=Path(config_data.get("editor", default.editor)),
             ident_key=config_data.get("ident_key", default.ident_key),
             ignored_directories=config_data.get("ignored_directories", default.ignored_directories),
             journal_template=config_data.get("journal_template", default.journal_template),
-            vault=Path(config_data.get("vault", default.vault)),
+            vault=Path(config_data["vault"]) if config_data.get("vault") else default.vault,
             verbose=config_data.get("verbose", default.verbose),
         )
 
@@ -328,7 +323,7 @@ def main(
             err=True,
             fg="red",
         )
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=2)
 
     if editor is None:
         if configuration.editor:
@@ -635,6 +630,23 @@ def journal(ctx: typer.Context) -> None:
     except FileNotFoundError as e:
         typer.secho(f"Today's journal '{page_path}' not found.", err=True, fg="red")
         raise typer.Exit(code=2) from e
+
+
+@cli.command()
+def ls(ctx: typer.Context) -> None:
+    """List all markdown files in the vault."""
+    state: State = ctx.obj
+
+    # Find all markdown files in the vault
+    for file_path in sorted(state.vault.rglob("*.md")):
+        # Get relative path from vault root
+        rel_path = file_path.relative_to(state.vault)
+
+        # Skip files in ignored directories
+        if _check_if_path_ignored(rel_path, state.ignored_directories):
+            continue
+
+        typer.echo(rel_path)
 
 
 @cli.command()

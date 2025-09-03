@@ -2,6 +2,12 @@
 
 This document lists the significant recent changes to obsidian-cli.
 
+## Version 0.1.12
+
+### Changed
+
+- The CLI now uses default settings instead of raising an error when no configuration file is found. The `--vault` option is required in this case.
+
 ## Version 0.1.9
 
 ### Added
