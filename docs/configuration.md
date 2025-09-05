@@ -27,7 +27,7 @@ editor = "code"
 ident_key = "uid"
 
 # Directories to ignore during queries and operations
-ignored_directories = ["Assets/", ".obsidian/", ".git/", "Templates/"]
+blacklist = ["Assets/", ".obsidian/", ".git/", "Templates/"]
 
 # Template for journal file paths
 journal_template = "Calendar/{year}/{month:02d}/{year}-{month:02d}-{day:02d}"
@@ -86,14 +86,14 @@ ident_key = "uuid"
 ident_key = "note_id"
 ```
 
-### ignored_directories
+### blacklist
 
 **Type:** Array of strings
 **Default:** `["Assets/", ".obsidian/", ".git/"]`
 **Description:** Directories to exclude from `query`, `ls`, and other vault operations.
 
 ```toml
-ignored_directories = [
+blacklist = [
     "Assets/",
     ".obsidian/",
     ".git/",
@@ -102,6 +102,8 @@ ignored_directories = [
     "_drafts/"
 ]
 ```
+
+**Note:** For backward compatibility, the old `ignored_directories` key is still supported in configuration files but is deprecated. Please use `blacklist` for new configurations.
 
 ### journal_template
 
@@ -155,7 +157,8 @@ verbose = true
 You can override configuration values using environment variables:
 
 - `OBSIDIAN_VAULT` - Override vault path
-- `OBSIDIAN_EDITOR` - Override editor command
+- `OBSIDIAN_BLACKLIST` - Override blacklist directories (colon-separated)
+- `EDITOR` - Override editor command
 - `XDG_CONFIG_HOME` - Change config directory location (Linux/macOS)
 
 ```bash
@@ -163,8 +166,12 @@ You can override configuration values using environment variables:
 export OBSIDIAN_VAULT="/path/to/different/vault"
 obsidian-cli ls
 
+# Override blacklist directories
+export OBSIDIAN_BLACKLIST="Assets/:Templates/:Archive/"
+obsidian-cli query tags --exists
+
 # Use different editor
-export OBSIDIAN_EDITOR="vim"
+export EDITOR="vim"
 obsidian-cli edit "My Note"
 ```
 
@@ -175,6 +182,9 @@ Any configuration option can be overridden via command-line flags:
 ```bash
 # Override vault setting
 obsidian-cli --vault /different/vault ls
+
+# Override blacklist directories
+obsidian-cli --blacklist "Assets/:Templates/" query tags --exists
 
 # Enable verbose mode for one command
 obsidian-cli --verbose query status --exists
@@ -189,7 +199,7 @@ obsidian-cli validates configuration on startup:
 
 - **vault**: Must be a valid directory path
 - **editor**: Must be a valid command (checked when used)
-- **ignored_directories**: Must be an array of strings
+- **blacklist**: Must be an array of strings
 - **journal_template**: Must be a valid format string
 
 Invalid configurations will show clear error messages with suggestions for fixes.
@@ -202,7 +212,7 @@ Invalid configurations will show clear error messages with suggestions for fixes
 vault = "/Users/researcher/Research"
 editor = "obsidian"  # Open in Obsidian app
 ident_key = "paper_id"
-ignored_directories = ["Assets/", ".obsidian/", ".git/", "PDFs/", "Data/"]
+blacklist = ["Assets/", ".obsidian/", ".git/", "PDFs/", "Data/"]
 journal_template = "Daily/{year}-{month:02d}-{day:02d}"
 verbose = true
 ```
@@ -213,7 +223,7 @@ verbose = true
 vault = "/Users/dev/notes"
 editor = "code"
 ident_key = "note_id"
-ignored_directories = ["Assets/", ".obsidian/", ".git/", "attachments/"]
+blacklist = ["Assets/", ".obsidian/", ".git/", "attachments/"]
 journal_template = "Journal/{year}/Week-{week:02d}/{weekday}"
 verbose = false
 ```
@@ -224,7 +234,7 @@ verbose = false
 vault = "/Users/person/SecondBrain"
 editor = "obsidian"
 ident_key = "uid"
-ignored_directories = ["Assets/", ".obsidian/", ".git/", "Templates/", "Archive/"]
+blacklist = ["Assets/", ".obsidian/", ".git/", "Templates/", "Archive/"]
 journal_template = "Calendar/{year}/{month_name}/{day:02d}-{weekday_abbr}"
 verbose = false
 ```

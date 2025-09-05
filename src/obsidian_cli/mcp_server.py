@@ -255,7 +255,7 @@ async def handle_get_vault_info(ctx: typer.Context, state, args: dict) -> list:
 - Total directories: {vault_info["total_directories"]}
 - Markdown files: {vault_info["markdown_files"]}
 - Editor: {vault_info["editor"]}
-- Ignored directories: {", ".join(vault_info["ignored_directories"])}
+- Blacklist: {", ".join(vault_info["blacklist"])}
 - Journal template: {vault_info["journal_template"]}
 - Version: {vault_info["version"]}
 """

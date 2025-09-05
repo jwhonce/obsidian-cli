@@ -158,7 +158,7 @@ verbose = false
 daily_note = "templates/daily-note.md"
 meeting = "templates/meeting.md"
 
-[ignored_directories]
+[blacklist]
 patterns = [".obsidian", "assets", "archive"]
 ```
 
@@ -376,7 +376,7 @@ The MCP server architecture allows for future extension with additional tools. C
 
 For large vaults:
 
-1. **Index Patterns**: Use ignored_directories to exclude large asset folders
+1. **Index Patterns**: Use blacklist to exclude large asset folders
 2. **Search Optimization**: Use exact matching when possible
 3. **Batch Operations**: Group related operations in single sessions
 4. **Connection Reuse**: Maintain persistent MCP connections for frequent operations

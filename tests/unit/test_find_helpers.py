@@ -8,7 +8,7 @@ import frontmatter
 
 from obsidian_cli.main import (
     _check_filename_match,
-    _check_if_path_ignored,
+    _check_if_path_blacklisted,
     _check_title_match,
     _find_matching_files,
     _get_frontmatter,
@@ -67,15 +67,17 @@ class TestFindHelpers(unittest.TestCase):
         ignored_dirs = ["Content/Archives/", "Assets/", ".obsidian/", ".git/"]
 
         # Test ignored paths
-        self.assertTrue(_check_if_path_ignored(Path("Content/Archives/old_file.md"), ignored_dirs))
-        self.assertTrue(_check_if_path_ignored(Path("Assets/image.png"), ignored_dirs))
-        self.assertTrue(_check_if_path_ignored(Path(".obsidian/config.json"), ignored_dirs))
-        self.assertTrue(_check_if_path_ignored(Path(".git/config"), ignored_dirs))
+        self.assertTrue(
+            _check_if_path_blacklisted(Path("Content/Archives/old_file.md"), ignored_dirs)
+        )
+        self.assertTrue(_check_if_path_blacklisted(Path("Assets/image.png"), ignored_dirs))
+        self.assertTrue(_check_if_path_blacklisted(Path(".obsidian/config.json"), ignored_dirs))
+        self.assertTrue(_check_if_path_blacklisted(Path(".git/config"), ignored_dirs))
 
         # Test non-ignored paths
-        self.assertFalse(_check_if_path_ignored(Path("Notes/daily.md"), ignored_dirs))
-        self.assertFalse(_check_if_path_ignored(Path("Projects/project1.md"), ignored_dirs))
-        self.assertFalse(_check_if_path_ignored(Path("readme.md"), ignored_dirs))
+        self.assertFalse(_check_if_path_blacklisted(Path("Notes/daily.md"), ignored_dirs))
+        self.assertFalse(_check_if_path_blacklisted(Path("Projects/project1.md"), ignored_dirs))
+        self.assertFalse(_check_if_path_blacklisted(Path("readme.md"), ignored_dirs))
 
     def test_get_frontmatter(self):
         """Test frontmatter extraction."""

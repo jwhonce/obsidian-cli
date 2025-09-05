@@ -2,13 +2,10 @@
 #
 # Common targets:
 #  - build: Build the Python package (creates dist/ directory)
-#  - publish: Upload the package to PyPI
 #  - clean: Remove build artifacts
 #  - dev: Install package in development mode
 #  - test: Run tests
 #  - all: Build and install package in development mode
-
-.PHONY: all build clean clean-tests coverage dev docs docs-serve format help install install-deps lint outdated publish release serve test unittest venv
 
 # Default target
 all: clean build dev
@@ -26,8 +23,11 @@ help:
 	@echo "  publish:     Publish the package to PyPI"
 	@echo "  release:     Complete release workflow (version+test+lint+docs+build+publish)"
 	@echo "  test:        Run all tests"
+	@echo "  test-simple: Run simple verification tests"
+	@echo "  test-pytest: Run pytest-based tests only"
 	@echo "  unittest:    Run only unit tests"
 	@echo "  coverage:    Generate test coverage report"
+	@echo "  verify-rename: Verify ignored_directories → blacklist rename"
 	@echo "  lint:        Check code style with Ruff"
 	@echo "  format:      Format and lint code using Ruff"
 	@echo "  serve:       Start MCP server for development testing"
@@ -104,12 +104,12 @@ publish: build
 	@echo "Upload to PyPI completed."
 
 # Run tests
-test: venv
-	@echo "Running tests..."
-	@. venv/bin/activate && \
+test: venv dev
+	@echo "🧪 Running tests..."
+	. venv/bin/activate && \
 		pip install pytest pytest-cov && \
-		pytest tests/ -v
-	@echo "Tests completed."
+		pytest tests/test_main.py -v --tb=short
+	echo "✅ Tests completed."
 
 # Run only unit tests
 unittest: venv
@@ -119,13 +119,15 @@ unittest: venv
 		pytest tests/unit/ -v
 	@echo "Unit tests completed."
 
-# Run tests with coverage report
-coverage: venv
-	@echo "Running tests with coverage..."
+# Run tests with coverage report using the comprehensive test runner
+coverage: venv clean-tests dev
+	@echo "🧪 Running tests with coverage..."
 	@. venv/bin/activate && \
 		pip install pytest pytest-cov && \
-		pytest tests/ --cov=src/obsidian_cli --cov-report=term --cov-report=html
-	@echo "Coverage report generated. See htmlcov/index.html"
+		pytest tests/ --cov=obsidian_cli --cov-report=term-missing --cov-report=html --tb=short -v || \
+		(echo "❌ Tests failed, but trying with src path..."; \
+		 PYTHONPATH=src pytest tests/ --cov=src/obsidian_cli --cov-report=term-missing --cov-report=html --tb=short -v)
+	@echo "✅ Coverage report generated. See htmlcov/index.html"
 
 # Lint the code
 lint: venv
@@ -177,6 +179,39 @@ outdated: venv
 		pip install pip-outdated && \
 		pip-outdated
 	@echo "Dependency check completed."
+
+# Alternative test targets for different approaches
+test-simple: venv
+	@echo "🧪 Running simple obsidian-cli tests..."
+	@. venv/bin/activate && \
+		PYTHONPATH=src python test_makefile_compat.py
+
+test-pytest: venv
+	@echo "🧪 Running pytest-based tests..."
+	@. venv/bin/activate && \
+		pip install pytest && \
+		PYTHONPATH=src pytest tests/ -v
+
+# Debug target to check environment setup
+debug: venv dev
+	@echo "🔍 Debug information:"
+	@echo "Python version:"
+	@. venv/bin/activate && python --version
+	@echo "Installed packages:"
+	@. venv/bin/activate && pip list | grep -E "(obsidian|pytest)"
+	@echo "Python path:"
+	@. venv/bin/activate && python -c "import sys; print('\n'.join(sys.path))"
+	@echo "Can import obsidian_cli:"
+	@. venv/bin/activate && python -c "import obsidian_cli.main; print('✅ Import successful')" || echo "❌ Import failed"
+	@echo "Test files found:"
+	@find tests/ -name "*.py" -type f
+
+# Verify the ignored_directories -> blacklist rename is complete
+verify-rename: venv
+	@echo "🔍 Verifying ignored_directories → blacklist rename..."
+	@. venv/bin/activate && \
+		PYTHONPATH=src python test_makefile_compat.py
+	@echo "✅ Rename verification complete"
 
 # Complete release workflow (requires VERSION argument)
 release: test format docs clean build publish

@@ -24,7 +24,7 @@ Example usage:
     $ obsidian-cli --vault /path/to/vault info
     $ obsidian-cli --vault /path/to/vault new "My New Note"
     $ obsidian-cli --vault /path/to/vault query tags --exists
-    $ obsidian-cli --vault /path/to/vault --ignored-directories "Archives/:Temp/" \\
+    $ obsidian-cli --vault /path/to/vault --blacklist "Archives/:Temp/" \\
         query tags --exists
     $ obsidian-cli --vault /path/to/vault find "Daily Note" --exact
     $ obsidian-cli --vault /path/to/vault journal
@@ -51,7 +51,7 @@ Configuration:
     ```toml
     editor = "vi"
     ident_key = "uid"
-    ignored_directories = ["Assets/", ".obsidian/", ".git/"]
+    blacklist = ["Assets/", ".obsidian/", ".git/"]
     journal_template = "Calendar/{year}/{month:02d}/{year}-{month:02d}-{day:02d}"
     vault = "~/path/to/vault"
     verbose = false
@@ -65,6 +65,10 @@ Configuration:
     - EDITOR: Editor to use for editing files
     - OBSIDIAN_BLACKLIST: Colon-separated list of directory patterns to ignore
     - OBSIDIAN_VAULT: Path to the Obsidian vault
+
+    Command Line Options:
+    - --blacklist: Colon-separated list of directory patterns to ignore
+                   (replaces --ignored-directories)
 
     Journal Template Variables:
     - {year}: 4-digit year (e.g., 2025)
@@ -80,6 +84,10 @@ Configuration:
 Author: Jhon Honce / Copilot enablement
 Version: 0.1.14
 License: Apache License 2.0
+
+Note: This command-line interface was developed with assistance from GitHub Copilot
+and Anthropic Claude, AI-powered coding assistants that helped with code generation,
+testing, documentation, and debugging throughout the development process.
 """
 
 import errno
@@ -145,9 +153,7 @@ class Configuration:
 
     editor: Path = Path("vi")
     ident_key: str = "uid"
-    ignored_directories: list[str] = field(
-        default_factory=lambda: ["Assets/", ".obsidian/", ".git/"]
-    )
+    blacklist: list[str] = field(default_factory=lambda: ["Assets/", ".obsidian/", ".git/"])
     journal_template: str = "Calendar/{year}/{month:02d}/{year}-{month:02d}-{day:02d}"
     vault: Optional[Path] = None
     verbose: bool = False
@@ -181,7 +187,9 @@ class Configuration:
         return cls(
             editor=Path(config_data.get("editor", default.editor)),
             ident_key=config_data.get("ident_key", default.ident_key),
-            ignored_directories=config_data.get("ignored_directories", default.ignored_directories),
+            blacklist=config_data.get(
+                "blacklist", config_data.get("ignored_directories", default.blacklist)
+            ),
             journal_template=config_data.get("journal_template", default.journal_template),
             vault=Path(config_data["vault"]) if config_data.get("vault") else default.vault,
             verbose=config_data.get("verbose", default.verbose),
@@ -224,7 +232,7 @@ class State:
 
     editor: Path
     ident_key: str
-    ignored_directories: list[str]
+    blacklist: list[str]
     journal_template: str
     vault: Path
     verbose: bool
@@ -250,10 +258,10 @@ def main(
             show_default=False,
         ),
     ] = None,
-    ignored_directories: Annotated[
+    blacklist: Annotated[
         Optional[str],
         typer.Option(
-            "--ignored-directories",
+            "--blacklist",
             envvar="OBSIDIAN_BLACKLIST",
             help=(
                 "Colon-separated list of directory patterns to ignore. "
@@ -329,13 +337,13 @@ def main(
         if configuration.editor:
             editor = configuration.editor.expanduser()
 
-    # Get ignored directories from command line, config, or defaults
+    # Get blacklist directories from command line, config, or defaults
     # (in order of precedence)
-    if ignored_directories is None:
-        ignored_dirs_list = list(configuration.ignored_directories)
+    if blacklist is None:
+        blacklist_dirs_list = list(configuration.blacklist)
     else:
         # Command line argument provided - split by colon
-        ignored_dirs_list = [dir.strip() for dir in ignored_directories.split(":") if dir.strip()]
+        blacklist_dirs_list = [dir.strip() for dir in blacklist.split(":") if dir.strip()]
 
     # Validate journal template
     journal_template = configuration.journal_template
@@ -362,7 +370,7 @@ def main(
     ctx.obj = State(
         editor=editor,
         ident_key=configuration.ident_key,
-        ignored_directories=ignored_dirs_list,
+        blacklist=blacklist_dirs_list,
         journal_template=journal_template,
         vault=vault,
         verbose=verbose,
@@ -557,9 +565,9 @@ def _get_vault_info(state: Union[Path, str]) -> dict[str, Any]:
     journal_path_str = state.journal_template.format(**template_vars)
 
     return {
+        "blacklist": state.blacklist,
         "editor": state.editor,
         "exists": True,
-        "ignored_directories": state.ignored_directories,
         "journal_path": journal_path_str,
         "journal_template": state.journal_template,
         "markdown_files": summary[".md"]["count"],
@@ -594,7 +602,7 @@ def info(ctx: typer.Context) -> None:
     typer.secho("--- Configuration Details ---", bold=True)
     typer.echo(f"Editor: {vault_info['editor']}")
     typer.echo(f"Verbose: {vault_info['verbose']}")
-    typer.echo(f"Ignored Directories: {':'.join(vault_info['ignored_directories'])}")
+    typer.echo(f"Blacklist: {':'.join(vault_info['blacklist'])}")
     journal_template_info = f"{vault_info['journal_template']} => {vault_info['journal_path']}"
     typer.echo(f"Journal Template: {journal_template_info}")
     typer.echo(f"Version: {vault_info['version']}")
@@ -642,8 +650,8 @@ def ls(ctx: typer.Context) -> None:
         # Get relative path from vault root
         rel_path = file_path.relative_to(state.vault)
 
-        # Skip files in ignored directories
-        if _check_if_path_ignored(rel_path, state.ignored_directories):
+        # Skip files in blacklisted directories
+        if _check_if_path_blacklisted(rel_path, state.blacklist):
             continue
 
         typer.echo(rel_path)
@@ -833,8 +841,8 @@ def query(
             # Get relative path from vault root
             rel_path = file_path.relative_to(state.vault)
 
-            # Skip files in ignored directories
-            if _check_if_path_ignored(rel_path, state.ignored_directories):
+            # Skip files in blacklisted directories
+            if _check_if_path_blacklisted(rel_path, state.blacklist):
                 if state.verbose:
                     typer.echo(f"Skipping excluded file: {rel_path}", err=True)
                 continue
@@ -979,18 +987,18 @@ def serve(ctx: typer.Context) -> None:
 # Helper functions (alphabetical order)
 
 
-def _check_if_path_ignored(rel_path: Path, ignored_directories: list[str]) -> bool:
-    """Check if a relative path should be ignored based on configured patterns.
+def _check_if_path_blacklisted(rel_path: Path, blacklist: list[str]) -> bool:
+    """Check if a relative path should be blacklisted based on configured patterns.
 
     Args:
         rel_path: The relative path to check.
-        ignored_directories: List of directory patterns to ignore.
+        blacklist: List of directory patterns to blacklist.
 
     Returns:
-        bool: True if the path should be ignored, False otherwise.
+        bool: True if the path should be blacklisted, False otherwise.
     """
     path_str = str(rel_path)
-    return any(path_str.startswith(pattern) for pattern in ignored_directories)
+    return any(path_str.startswith(pattern) for pattern in blacklist)
 
 
 def _check_filename_match(file_stem: str, search_name: str, exact_match: bool) -> bool:

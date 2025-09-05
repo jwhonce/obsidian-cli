@@ -43,10 +43,11 @@ Example configuration:
 
 ```toml
 vault = "/path/to/your/obsidian/vault"
-editor = "code"
+editor = "vi"
 ident_key = "uid"
-ignored_directories = ["Assets/", ".obsidian/", ".git/"]
+blacklist = ["Assets/", ".obsidian/", ".git/"]
 journal_template = "Calendar/{year}/{month:02d}/{year}-{month:02d}-{day:02d}"
+vault = "~/path/to/vault"
 verbose = false
 ```
 

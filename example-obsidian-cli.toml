@@ -1,11 +1,11 @@
 # Example obsidian-cli configuration file
 # Copy to ./obsidian-cli.toml or ~/.config/obsidian-cli/config.toml
 
-vault               = "~/Documents/Obsidian/MyVault"
-editor              = "vim"
-verbose             = false
-ident_key           = "uid"
-ignored_directories = ["Assets/", ".obsidian/", ".git/", "Templates/"]
+vault      = "~/Documents/Obsidian/MyVault"
+editor     = "vim"
+verbose    = false
+ident_key  = "uid"
+blacklist  = ["Assets/", ".obsidian/", ".git/", "Templates/"]
 
 # Journal template examples:
 
