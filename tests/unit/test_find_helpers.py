@@ -6,12 +6,12 @@ from pathlib import Path
 
 import frontmatter
 
-from obsidian_cli.main import (
+from obsidian_cli.main import _get_frontmatter
+from obsidian_cli.utils import (
     _check_filename_match,
     _check_if_path_blacklisted,
     _check_title_match,
     _find_matching_files,
-    _get_frontmatter,
 )
 
 
