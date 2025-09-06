@@ -21,15 +21,16 @@ The CLI uses Typer for command-line interface management and provides a clean,
 intuitive interface with extensive help documentation.
 
 Example usage:
+    $ obsidian-cli --help
     $ obsidian-cli --vault /path/to/vault info
     $ obsidian-cli --vault /path/to/vault new "My New Note"
     $ obsidian-cli --vault /path/to/vault query tags --exists
-    $ obsidian-cli --vault /path/to/vault --blacklist "Archives/:Temp/" \\
+    $ obsidian-cli --vault /path/to/vault --blacklist "Archives/:Temp/" \
         query tags --exists
     $ obsidian-cli --vault /path/to/vault find "Daily Note" --exact
     $ obsidian-cli --vault /path/to/vault journal
     $ obsidian-cli --vault /path/to/vault rm --force unwanted-note
-    $ OBSIDIAN_BLACKLIST="Templates/:Archive/" obsidian-cli --vault /path/to/vault \\
+    $ OBSIDIAN_BLACKLIST="Templates/:Archive/" obsidian-cli --vault /path/to/vault \
         query tags --exists
 
 Commands:
@@ -38,7 +39,8 @@ Commands:
     edit        Edit any file with the configured editor
     find        Find files by name or title with exact/fuzzy matching
     info        Display vault and configuration information
-    journal     Open today's journal entry (must exist)
+    journal     Open a journal entry (optionally for a specific --date)
+    ls          List markdown files in the vault, respecting the blacklist
     meta        View or update frontmatter metadata
     new         Create a new file in the vault
     query       Query frontmatter across all files
@@ -66,10 +68,6 @@ Configuration:
     - OBSIDIAN_BLACKLIST: Colon-separated list of directory patterns to ignore
     - OBSIDIAN_VAULT: Path to the Obsidian vault
 
-    Command Line Options:
-    - --blacklist: Colon-separated list of directory patterns to ignore
-                   (replaces --ignored-directories)
-
     Journal Template Variables:
     - {year}: 4-digit year (e.g., 2025)
     - {month}: Month number (1-12)
@@ -84,10 +82,6 @@ Configuration:
 Author: Jhon Honce / Copilot enablement
 Version: 0.1.14
 License: Apache License 2.0
-
-Note: This command-line interface was developed with assistance from GitHub Copilot
-and Anthropic Claude, AI-powered coding assistants that helped with code generation,
-testing, documentation, and debugging throughout the development process.
 """
 
 import errno
