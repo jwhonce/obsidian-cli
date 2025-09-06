@@ -620,7 +620,7 @@ def journal(ctx: typer.Context) -> None:
     try:
         # Format the template with current date
         journal_path_str = state.journal_template.format(**template_vars)
-        page_path = Path(journal_path_str)
+        page_path = Path(journal_path_str).with_suffix(".md")
     except KeyError as e:
         typer.secho(f"Invalid template variable in journal_template: {e}", err=True, fg="red")
         raise typer.Exit(code=1) from e
