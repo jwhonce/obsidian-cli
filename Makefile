@@ -103,13 +103,11 @@ publish: build
 		python -m twine upload dist/*
 	@echo "Upload to PyPI completed."
 
-# Run tests
-test: venv dev
-	@echo "🧪 Running tests..."
-	. venv/bin/activate && \
-		pip install pytest pytest-cov && \
-		pytest tests/test_main.py -v --tb=short
-	echo "✅ Tests completed."
+.PHONY: test
+
+# Run all tests in the tests/ directory using pytest
+test:
+	@PYTHONPATH=src python -m pytest
 
 # Run only unit tests
 unittest: venv

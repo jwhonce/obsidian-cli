@@ -561,7 +561,7 @@ def _get_vault_info(state: Union[Path, str]) -> dict[str, Any]:
                 pass
 
     # Get journal template information
-    template_vars = _get_journal_template_vars()
+    template_vars = _get_journal_template_vars(datetime.now())
     journal_path_str = state.journal_template.format(**template_vars)
 
     return {
@@ -609,16 +609,37 @@ def info(ctx: typer.Context) -> None:
 
 
 @cli.command()
-def journal(ctx: typer.Context) -> None:
-    """Open today's journal entry in the Obsidian Vault."""
-    # [default: 'Calendar/{year}/{month:02d}/{year}-{month:02d}-{day:02d}']
+def journal(
+    ctx: typer.Context,
+    date: Annotated[
+        Optional[str],
+        typer.Option(
+            "--date",
+            help="Date to open in YYYY-MM-DD format; defaults to today if omitted",
+            show_default=False,
+        ),
+    ] = None,
+) -> None:
+    """Open a journal entry in the Obsidian Vault.
+
+    If --date is provided, open that date's entry (YYYY-MM-DD). Otherwise, open today's entry.
+    """
     state: State = ctx.obj
 
-    # Prepare template variables using helper function
-    template_vars = _get_journal_template_vars()
+    # Determine target date
+    if date is None:
+        dt = datetime.now()
+    else:
+        try:
+            dt = datetime.strptime(date, "%Y-%m-%d")
+        except ValueError as e:
+            typer.secho("Invalid --date format. Use YYYY-MM-DD.", err=True, fg="red")
+            raise typer.Exit(code=1) from e
+
+    # Build template variables from target date
+    template_vars = _get_journal_template_vars(dt)
 
     try:
-        # Format the template with current date
         journal_path_str = state.journal_template.format(**template_vars)
         page_path = Path(journal_path_str).with_suffix(".md")
     except KeyError as e:
@@ -636,7 +657,7 @@ def journal(ctx: typer.Context) -> None:
         # Open the journal for editing
         ctx.invoke(edit, ctx=ctx, page_or_path=page_path)
     except FileNotFoundError as e:
-        typer.secho(f"Today's journal '{page_path}' not found.", err=True, fg="red")
+        typer.secho(f"Journal entry '{page_path}' not found.", err=True, fg="red")
         raise typer.Exit(code=2) from e
 
 
@@ -1220,13 +1241,12 @@ def _get_frontmatter(filename: Path) -> frontmatter.Post:
         raise FileNotFoundError(e.errno, "Page or File does not exist.", filename) from None
 
 
-def _get_journal_template_vars() -> dict[str, str | int]:
+def _get_journal_template_vars(date: datetime) -> dict[str, str | int]:
     """Get template variables for journal path formatting.
 
     Returns:
         dict: Dictionary containing template variables for journal path formatting.
     """
-    date = datetime.now()
     return {
         "year": date.year,
         "month": date.month,

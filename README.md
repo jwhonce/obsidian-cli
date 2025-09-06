@@ -65,6 +65,39 @@ verbose = false
 - `serve` - Start MCP server for AI assistant integration
 - `version` - Display version information
 
+### Command: ls
+
+List markdown files in the vault.
+
+- **Description**: Prints the relative paths of all `*.md` files under the configured vault.
+- **Blacklist**: Respects blacklisted directory prefixes (e.g., `Assets/`, `.obsidian/`, `.git/`).
+
+  - Configure via any of:
+
+    - CLI: `--blacklist "Assets/:.obsidian/:.git/"`
+    - Env: `OBSIDIAN_BLACKLIST="Assets/:.obsidian/:.git/"`
+    - Config: `blacklist = ["Assets/", ".obsidian/", ".git/"]` in obsidian-cli.toml
+
+- **Output**: One path per line, relative to the vault root.
+- **Requires**: `--vault` to point to your Obsidian vault directory (or set via config/env).
+
+Usage:
+
+- Basic listing
+
+  - `obsidian-cli --vault /path/to/vault ls`
+
+- With custom blacklist
+
+  - `obsidian-cli --vault /path/to/vault --blacklist "Templates/:Archive/" ls`
+
+Notes:
+
+- Matching is prefix-based and case-sensitive (e.g., `Assets/` matches `Assets/images.png`, but not `assets/`).
+- Only Markdown files (`*.md`) are listed.
+
+See also: [docs/commands/ls.md](docs/commands/ls.md)
+
 ### Examples
 
 ```bash
