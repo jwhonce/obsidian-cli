@@ -4,7 +4,7 @@ import json
 from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
-from typing import Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import frontmatter
 import typer
@@ -356,15 +356,8 @@ def _get_vault_info(state: "State") -> dict[str, Any]:
     Returns:
         Dictionary containing vault information
     """
-    # Import here to avoid circular imports
-    try:
-        from . import __version__
-    except ImportError:
-        try:
-            import importlib.metadata
-            __version__ = importlib.metadata.version("obsidian-cli")
-        except Exception:
-            __version__ = "0.1.14"  # Fallback version
+    # Import version from main module to avoid duplication
+    from .main import __version__
 
     # MCP server uses this function with state.vault as a string
     vault_path = Path(state.vault)

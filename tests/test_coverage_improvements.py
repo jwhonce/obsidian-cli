@@ -2,17 +2,21 @@
 Additional tests to improve code coverage for obsidian-cli.
 """
 
+import logging
 import os
 import tempfile
 import tomllib
 import unittest
 import unittest.mock
+from asyncio import CancelledError
+from datetime import datetime
+from io import StringIO
 from pathlib import Path
 from unittest.mock import patch
 
 from typer.testing import CliRunner
 
-from obsidian_cli.main import Configuration, State, cli
+from obsidian_cli.main import Configuration, State, TyperLoggerHandler, cli
 from obsidian_cli.utils import _get_vault_info
 
 
@@ -32,24 +36,56 @@ class TestCoverageImprovements(unittest.TestCase):
             return result.output
 
     def test_configuration_file_not_found_verbose(self):
-        """Test that message is displayed in verbose mode when no config found."""
+        """Test that message is logged in verbose mode when no config found."""
+
         with tempfile.TemporaryDirectory() as temp_dir:
             old_cwd = os.getcwd()
             try:
                 os.chdir(temp_dir)
                 # Ensure no default config files exist
 
-                # Mock Configuration.from_path to return (None, default_config)
-                # simulating no config file found
-                with patch("obsidian_cli.main.Configuration.from_path") as mock_from_path:
-                    mock_config = Configuration()
-                    mock_from_path.return_value = (None, mock_config)
+                # Set up a logging capture to see what actually gets logged
+                log_capture = StringIO()
+                handler = logging.StreamHandler(log_capture)
+                handler.setLevel(logging.DEBUG)
 
-                    result = self.runner.invoke(cli, ["--verbose", "info"])
-                    self.assertEqual(result.exit_code, 2)
+                # Get the actual logger and add our handler
+                actual_logger = logging.getLogger("obsidian_cli.main")
+                actual_logger.addHandler(handler)
+                actual_logger.setLevel(logging.DEBUG)
 
-                    # Should show message about using hard-coded defaults
-                    self.assertIn("Hard-coded defaults will be used", result.output)
+                try:
+                    # Mock Configuration.from_path to return (None, default_config)
+                    # simulating no config file found - the key is source=None
+                    with patch("obsidian_cli.main.Configuration.from_path") as mock_from_path:
+                        mock_config = Configuration()  # Use default config (verbose=False)
+                        # This is the critical part - source must be None (not False or empty)
+                        mock_from_path.return_value = (None, mock_config)
+
+                        # Create a valid vault directory for the info command
+                        vault_dir = Path(temp_dir) / "test_vault"
+                        vault_dir.mkdir()
+
+                        # Pass --verbose explicitly to enable verbose logging
+                        # This overrides the config's verbose=False setting
+                        result = self.runner.invoke(
+                            cli, ["--vault", str(vault_dir), "--verbose", "info"]
+                        )
+
+                        # Should succeed when vault is provided
+                        self.assertEqual(result.exit_code, 0)
+
+                        # Check if the message appears in the log output
+                        log_output = log_capture.getvalue()
+                        self.assertIn(
+                            "Hard-coded defaults will be used as no config file was found.",
+                            log_output,
+                            f"Expected log message not found. Actual log output: {log_output}",
+                        )
+                finally:
+                    # Clean up the handler
+                    actual_logger.removeHandler(handler)
+                    actual_logger.setLevel(logging.WARNING)  # Reset to default
             finally:
                 os.chdir(old_cwd)
 
@@ -99,7 +135,6 @@ invalid_syntax ===== "broken"
 
     def test_vault_required_logging(self):
         """Test that missing vault path is properly logged when no vault is available."""
-        from unittest.mock import patch
 
         with tempfile.TemporaryDirectory() as temp_dir:
             old_cwd = os.getcwd()
@@ -133,7 +168,6 @@ invalid_syntax ===== "broken"
 
     def test_configuration_loading_error_logging(self):
         """Test that configuration loading errors are properly displayed."""
-        from unittest.mock import patch
 
         with tempfile.TemporaryDirectory() as temp_dir:
             old_cwd = os.getcwd()
@@ -185,7 +219,6 @@ invalid_syntax ===== "broken"
 
     def test_journal_template_validation_logging(self):
         """Test that invalid journal template validation is properly logged."""
-        from unittest.mock import patch
 
         with tempfile.TemporaryDirectory() as temp_dir:
             old_cwd = os.getcwd()
@@ -237,9 +270,6 @@ journal_template = "Journal/{{invalid_var}}/{{year}}"
 
     def test_typer_logger_handler(self):
         """Test TyperLoggerHandler functionality."""
-        import logging
-
-        from obsidian_cli.main import TyperLoggerHandler
 
         handler = TyperLoggerHandler()
 
@@ -290,7 +320,6 @@ Content here
 
     def test_add_uid_existing_uid_logging(self):
         """Test that add-uid logs error when UID already exists without force."""
-        from unittest.mock import patch
 
         with self.runner.isolated_filesystem():
             vault = Path("vault").resolve()
@@ -318,7 +347,6 @@ title: Test File
 
     def test_add_uid_debug_logging(self):
         """Test that add-uid logs debug message when generating new UUID."""
-        from unittest.mock import patch
 
         with self.runner.isolated_filesystem():
             vault = Path("vault").resolve()
@@ -348,7 +376,6 @@ title: Test File
 
     def test_add_uid_without_force_existing(self):
         """Test add-uid command without force when UID exists."""
-        from unittest.mock import patch
 
         with self.runner.isolated_filesystem():
             vault = Path("vault").resolve()
@@ -601,8 +628,6 @@ journal_template = "Journal/{{year}}/{{month:02d}}/{{day:02d}}"
             vault.mkdir()
 
             # Create the expected journal file
-            from datetime import datetime
-
             today = datetime.now()
             expected_dir = vault / f"Calendar/{today.year}/{today.month:02d}"
             expected_dir.mkdir(parents=True, exist_ok=True)
@@ -1189,8 +1214,6 @@ Content""")
 
             # Mock serve_mcp to raise CancelledError
             with patch("obsidian_cli.main.serve_mcp") as mock_serve_mcp:
-                from asyncio import CancelledError
-
                 mock_serve_mcp.side_effect = CancelledError()
 
                 result = self.runner.invoke(cli, ["--vault", str(vault), "--verbose", "serve"])

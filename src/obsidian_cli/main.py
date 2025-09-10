@@ -80,7 +80,7 @@ Configuration:
     - {weekday_abbr}: Abbreviated weekday (e.g., Mon)
 
 Author: Jhon Honce / Copilot enablement
-Version: 0.1.15
+Version: 0.1.16
 License: Apache License 2.0
 """
 
@@ -131,13 +131,14 @@ except Exception:  # pylint: disable=broad-except
     try:
         from . import __version__
     except Exception:  # pylint: disable=broad-except
-        __version__ = "0.1.15"  # Fallback version
+        __version__ = "0.1.16"  # Fallback version
 
 
 # Initialize Typer app
 cli = typer.Typer(
     add_completion=False,
     help="Command-line interface for interacting with Obsidian.",
+    no_args_is_help=True,
     context_settings={"max_content_width": get_terminal_size().columns},
 )
 logger = logging.getLogger(__name__)
@@ -158,7 +159,13 @@ class Configuration:
     - ./obsidian-cli.toml (current directory)
     - ~/.config/obsidian-cli/config.toml (user's config directory)
     - Hand-coded defaults
+
+    Note: logging is not configured until after config file is read to support
+    verbose flag in config file.
     """
+
+    # TODO: Is typer.echo(f"{typer.get_app_dir('obsidian-cli')}") a better way to
+    #   determine config path?
 
     blacklist: list[str] = field(default_factory=lambda: ["Assets/", ".obsidian/", ".git/"])
     config_dirs: list[Path] = field(
@@ -226,7 +233,7 @@ class Configuration:
                 editor=Path(config_data.get("editor", default.editor)),
                 ident_key=config_data.get("ident_key", default.ident_key),
                 journal_template=config_data.get("journal_template", default.journal_template),
-                vault=Path(config_data["vault"]) if config_data.get("vault") else default.vault,
+                vault=Path(config_data["vault"]) if config_data.get("vault") else None,
                 verbose=config_data.get("verbose", default.verbose),
             ),
         )
@@ -286,8 +293,9 @@ def main(
         Optional[Path],
         typer.Option(
             help=(
-                "Path to the configuration file. "
-                "[default: ./obsidian-cli.toml:~/.config/obsidian-cli/config.toml]"
+                "Colon-separated list of files to read configuration from."
+                " Precedence is given to the first file found."
+                " [default: ./obsidian-cli.toml:~/.config/obsidian-cli/config.toml]"
             ),
             show_default=False,
         ),
@@ -298,8 +306,7 @@ def main(
             "--blacklist",
             envvar="OBSIDIAN_BLACKLIST",
             help=(
-                "Colon-separated list of directory patterns to ignore. "
-                "[default: Assets/:.obsidian/:.git/]"
+                "Colon-separated list of directories to ignore. [default: Assets/:.obsidian/:.git/]"
             ),
             show_default=False,
         ),
@@ -342,18 +349,16 @@ def main(
         typer.secho(f"Error loading configuration: {e}", err=True, fg=typer.colors.RED)
         raise typer.Exit(code=2) from e
 
-    if verbose and not source:
-        typer.echo("Hard-coded defaults will be used as no config file was found.")
-
-    # Get verbose setting from command line, config file, or default to False
     if verbose is None:
         verbose = configuration.verbose
     logger.setLevel(logging.DEBUG if verbose else logging.WARN)
 
+    if source is None:
+        logger.info("Hard-coded defaults will be used as no config file was found.")
+
     # Apply configuration values if CLI arguments are not provided
-    if vault is None:
-        if configuration.vault:
-            vault = configuration.vault.expanduser()
+    if vault is None and configuration.vault is not None:
+        vault = configuration.vault.expanduser()
 
     # Vault is required for all commands
     if vault is None:
@@ -610,7 +615,7 @@ def journal(
 
 @cli.command()
 def ls(ctx: typer.Context) -> None:
-    """List all markdown files in the vault."""
+    """List white-listed pages in the vault."""
     state: State = ctx.obj
 
     # Find all markdown files in the vault
@@ -930,18 +935,6 @@ def serve(ctx: typer.Context) -> None:
     # The server will run indefinitely until interrupted (Ctrl+C).
 
     state: State = ctx.obj
-
-    try:
-        pass  # imports already at top
-    except ImportError as e:
-        logger.error(
-            (
-                "Error: MCP dependencies not installed. Please install with:"
-                " pip install mcp\nDetails: %s"
-            ),
-            e,
-        )
-        raise typer.Exit(1) from e
 
     logger.debug("Starting MCP server for vault: %s", state.vault)
     logger.info("Server will run until interrupted (Ctrl+C)")
