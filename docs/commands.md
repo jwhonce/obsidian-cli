@@ -15,28 +15,54 @@ All commands support these global options:
 
 ### add-uid
 
-Add unique identifiers to notes that don't already have them.
+Add a unique ID to a page's frontmatter if it doesn't already have one.
 
 ```bash
-obsidian-cli add-uid [OPTIONS] [PAGES]...
+obsidian-cli add-uid [OPTIONS] PAGE_OR_PATH
 ```
+
+**Arguments:**
+
+- `PAGE_OR_PATH` - Obsidian page name or path to file
 
 **Options:**
 
-- `--force, -f` - Skip confirmation prompt and add UIDs to all specified notes
-- `--dry-run` - Show what would be done without making changes
+- `--force` - If set, overwrite existing uid
 
 **Examples:**
 
 ```bash
-# Add UIDs to all notes
-obsidian-cli add-uid
+# Add UID to a specific note
+obsidian-cli add-uid "My Note"
 
-# Add UID to specific note
-obsidian-cli add-uid "My Note.md"
+# Force overwrite existing UID
+obsidian-cli add-uid --force "My Note"
+```
 
-# Force add UIDs without confirmation
-obsidian-cli add-uid --force
+### cat
+
+Display the contents of a file in the Obsidian Vault.
+
+```bash
+obsidian-cli cat [OPTIONS] PAGE_OR_PATH
+```
+
+**Arguments:**
+
+- `PAGE_OR_PATH` - Obsidian page name or path to file
+
+**Options:**
+
+- `--show-frontmatter` - If set, show frontmatter in addition to file content
+
+**Examples:**
+
+```bash
+# Display note content only
+obsidian-cli cat "My Note"
+
+# Display note with frontmatter
+obsidian-cli cat --show-frontmatter "My Note"
 ```
 
 ### edit
@@ -59,6 +85,47 @@ obsidian-cli edit "My Note"
 
 # Edit by path
 obsidian-cli edit "Projects/idea.md"
+```
+
+### find
+
+Find files in the vault that match the given page name.
+
+```bash
+obsidian-cli find [OPTIONS] PAGE_NAME
+```
+
+**Arguments:**
+
+- `PAGE_NAME` - Obsidian page to use in search
+
+**Options:**
+
+- `--exact/-e` - Require exact match on page name
+
+**Examples:**
+
+```bash
+# Find notes with fuzzy matching
+obsidian-cli find "meeting"
+
+# Find notes with exact matching
+obsidian-cli find --exact "Daily Meeting Notes"
+```
+
+### info
+
+Display information about the current Obsidian Vault and configuration.
+
+```bash
+obsidian-cli info
+```
+
+**Examples:**
+
+```bash
+# Show vault information
+obsidian-cli info
 ```
 
 ### journal
@@ -85,48 +152,64 @@ obsidian-cli journal --date 2025-01-15
 
 ### ls
 
-List all notes in the vault.
+List all markdown files in the vault.
 
 ```bash
-obsidian-cli ls [OPTIONS]
+obsidian-cli ls
 ```
-
-**Options:**
-
-- `--format, -f [path|title|full]` - Output format (default: path)
 
 **Examples:**
 
 ```bash
 # List all notes (paths only)
 obsidian-cli ls
-
-# List with titles
-obsidian-cli ls --format title
-
-# List with full metadata
-obsidian-cli ls --format full
 ```
 
-### new
+### meta
 
-Create a new note with optional frontmatter.
+View or update frontmatter metadata in a file.
 
 ```bash
-obsidian-cli new [OPTIONS] TITLE
+obsidian-cli meta [OPTIONS] PAGE_OR_PATH
 ```
 
 **Arguments:**
 
-- `TITLE` - Title of the new note
+- `PAGE_OR_PATH` - Obsidian page name or path to file
 
 **Options:**
 
-- `--force, -f` - Overwrite existing file if it exists
-- `--tags TEXT` - Comma-separated list of tags
-- `--status TEXT` - Status value for the note
-- `--category TEXT` - Category for the note
-- `--template PATH` - Path to template file to use
+- `--key TEXT` - Key of the frontmatter metadata to view or update
+- `--value TEXT` - New metadata for given key
+
+**Examples:**
+
+```bash
+# List all metadata for a note
+obsidian-cli meta "My Note"
+
+# View specific metadata key
+obsidian-cli meta "My Note" --key status
+
+# Update metadata
+obsidian-cli meta "My Note" --key status --value completed
+```
+
+### new
+
+Create a new file in the Obsidian Vault.
+
+```bash
+obsidian-cli new [OPTIONS] PAGE_OR_PATH
+```
+
+**Arguments:**
+
+- `PAGE_OR_PATH` - Obsidian page name or path to file
+
+**Options:**
+
+- `--force` - Overwrite existing file with new contents
 
 **Examples:**
 
@@ -134,11 +217,11 @@ obsidian-cli new [OPTIONS] TITLE
 # Create a simple note
 obsidian-cli new "My New Note"
 
-# Create with frontmatter
-obsidian-cli new "Project Plan" --tags project,planning --status active
+# Overwrite existing file
+obsidian-cli new --force "Existing Note"
 
-# Create from template
-obsidian-cli new "Meeting Notes" --template templates/meeting.md
+# Create note with content from stdin
+echo "Note content" | obsidian-cli new "Note from Stdin"
 ```
 
 ### query
@@ -159,9 +242,8 @@ obsidian-cli query [OPTIONS] KEY
 - `--contains TEXT` - Find pages where the key's metadata contains this substring
 - `--exists` - Find pages where the key exists
 - `--missing` - Find pages where the key is missing
-- `--format, -f [path|title|full|count|json]` - Output format styles (default: path)
+- `--style, -s [json|path|table|title]` - Output format style (default: path)
 - `--count, -c` - Only show count of matching pages
-- `--group-by, -g TEXT` - Group results by the specified frontmatter property
 
 **Examples:**
 
@@ -175,11 +257,11 @@ obsidian-cli query title --contains project
 # Count notes by status
 obsidian-cli query status --exists --count
 
-# Group notes by category
-obsidian-cli query status --exists --group-by category
+# Table format output
+obsidian-cli query status --exists --style table
 
 # JSON output for scripting
-obsidian-cli query tags --exists --format json
+obsidian-cli query tags --exists --style json
 ```
 
 ### rm
@@ -187,12 +269,12 @@ obsidian-cli query tags --exists --format json
 Remove notes from the vault.
 
 ```bash
-obsidian-cli rm [OPTIONS] PAGES...
+obsidian-cli rm [OPTIONS] PAGE_OR_PATH
 ```
 
 **Arguments:**
 
-- `PAGES` - Note titles or file paths to remove
+- `PAGE_OR_PATH` - Note title or file path to remove
 
 **Options:**
 
@@ -203,9 +285,6 @@ obsidian-cli rm [OPTIONS] PAGES...
 ```bash
 # Remove a note (with confirmation)
 obsidian-cli rm "Old Note"
-
-# Remove multiple notes
-obsidian-cli rm "Note 1" "Note 2" "Note 3"
 
 # Force removal without confirmation
 obsidian-cli rm --force "Temporary Note"
@@ -242,21 +321,6 @@ obsidian-cli serve
 #     }
 #   }
 # }
-```
-
-### version
-
-Display version information.
-
-```bash
-obsidian-cli version
-```
-
-**Examples:**
-
-```bash
-# Show version
-obsidian-cli version
 ```
 
 ## Configuration Integration

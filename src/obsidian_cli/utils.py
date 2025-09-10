@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import json
+from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, TYPE_CHECKING
 
 import frontmatter
 import typer
@@ -11,6 +12,9 @@ from click import FileError
 from rich.console import Console
 from rich.markup import escape
 from rich.table import Table
+
+if TYPE_CHECKING:
+    from .main import State
 
 
 def _check_if_path_blacklisted(rel_path: Path, blacklist: list[str]) -> bool:
@@ -341,3 +345,81 @@ def _update_metadata_key(
 
     if verbose:
         typer.echo(f"Updated '{key}': '{value}' in {filename}")
+
+
+def _get_vault_info(state: "State") -> dict[str, Any]:
+    """Get vault information as structured data.
+
+    Args:
+        state: State object containing vault configuration
+
+    Returns:
+        Dictionary containing vault information
+    """
+    # Import here to avoid circular imports
+    try:
+        from . import __version__
+    except ImportError:
+        try:
+            import importlib.metadata
+            __version__ = importlib.metadata.version("obsidian-cli")
+        except Exception:
+            __version__ = "0.1.14"  # Fallback version
+
+    # MCP server uses this function with state.vault as a string
+    vault_path = Path(state.vault)
+
+    if not vault_path.exists():
+        return {
+            "error": f"Vault not found at: {vault_path}",
+            "vault_path": str(vault_path),
+            "exists": False,
+        }
+
+    def _walk_vault(path: Path):
+        """Recursively walks a directory and yields Path objects for directories and files."""
+        yield path
+
+        for entry in path.iterdir():
+            if entry.is_dir():
+                # Recursively call for subdirectories
+                yield from _walk_vault(entry)
+            else:
+                # Yield file Path object
+                yield entry
+
+    summary: dict[str, dict[str, int]] = defaultdict(lambda: {"count": 0, "total_size": 0})
+
+    for entry in _walk_vault(vault_path):
+        if entry.is_dir():
+            summary["directories"]["count"] += 1
+            summary["directories"]["total_size"] += entry.lstat().st_size
+
+        elif entry.is_file():
+            summary["files"]["count"] += 1
+            summary[entry.suffix]["count"] += 1
+
+            try:
+                st_size = entry.lstat().st_size
+                summary["files"]["total_size"] += st_size
+                summary[entry.suffix]["total_size"] += st_size
+            except Exception:
+                pass
+
+    # Get journal template information
+    template_vars = _get_journal_template_vars(datetime.now())
+    journal_path_str = state.journal_template.format(**template_vars)
+
+    return {
+        "blacklist": state.blacklist,
+        "editor": state.editor,
+        "exists": True,
+        "journal_path": journal_path_str,
+        "journal_template": state.journal_template,
+        "markdown_files": summary[".md"]["count"],
+        "total_directories": summary["directories"]["count"],
+        "total_files": summary["files"]["count"],
+        "vault_path": str(vault_path),
+        "verbose": state.verbose,
+        "version": __version__,
+    }

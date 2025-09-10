@@ -2,6 +2,32 @@
 
 This document lists the significant recent changes to obsidian-cli.
 
+## Version 0.1.14
+
+### Added
+
+- **Comprehensive Test Suite**: Achieved 78% test coverage with 117 tests
+- **Enhanced Test Infrastructure**: Added extensive test coverage for all major components
+  - `tests/test_coverage_improvements.py` - 24 tests covering main.py functionality
+  - `tests/test_mcp_server_comprehensive.py` - 17 tests covering MCP server functionality  
+  - `tests/test_utils_coverage.py` - Additional tests for utils module
+- **Improved Makefile**: Enhanced coverage target with 75% threshold enforcement
+- **Robust Error Handling**: Fixed stderr capture issues across all test files
+- **Cross-platform Compatibility**: Tests now work consistently across different environments
+
+### Changed
+
+- **Import Organization**: All imports moved to top of files following Python best practices
+- **Linting Improvements**: Fixed deprecated `logger.warn()` calls to use `logger.warning()`
+- **Code Quality**: Merged nested if statements for better readability
+- **Test Reliability**: Fixed date-dependent tests and assertion mismatches
+
+### Fixed
+
+- **Test Failures**: Resolved 4 failing tests related to stderr capture
+- **Coverage Reporting**: Fixed inconsistent coverage calculations between different execution methods
+- **CLI Runner Issues**: Updated test framework to work with current typer version
+
 ## Version 0.1.12
 
 ### Changed

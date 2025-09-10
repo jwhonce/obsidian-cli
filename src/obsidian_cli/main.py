@@ -84,24 +84,31 @@ Version: 0.1.14
 License: Apache License 2.0
 """
 
+import asyncio
 import errno
+import importlib.metadata
 import logging
 import os
+import signal
+import subprocess
 import sys
 import tomllib
+import traceback
+import uuid
 from asyncio import CancelledError
-from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import StrEnum
 from pathlib import Path
 from shutil import get_terminal_size
-from typing import Annotated, Any, Optional, Union
+from typing import Annotated, Any, Optional
 
-import frontmatter
+import frontmatter  # type: ignore[import-untyped]
 import typer
+from mdutils.mdutils import MdUtils  # type: ignore[import-untyped]
 from typing_extensions import Doc
 
+from .mcp_server import serve_mcp
 from .utils import (
     _check_if_path_blacklisted,
     _display_find_results,
@@ -110,6 +117,7 @@ from .utils import (
     _find_matching_files,
     _get_frontmatter,
     _get_journal_template_vars,
+    _get_vault_info,
     _list_all_metadata,
     _resolve_path,
     _update_metadata_key,
@@ -117,14 +125,12 @@ from .utils import (
 
 # Get version from package metadata or fallback
 try:
-    import importlib.metadata
-
     __version__ = importlib.metadata.version("obsidian-cli")
-except Exception:
+except Exception:  # pylint: disable=broad-except
     # Fallback for development mode
     try:
         from . import __version__
-    except Exception:
+    except Exception:  # pylint: disable=broad-except
         __version__ = "0.1.14"  # Fallback version
 
 
@@ -148,18 +154,13 @@ def _version(value: bool) -> None:
 class Configuration:
     """Record configuration for obsidian-cli application.
 
-    Default paths include in order of precedence:
+    Default order of precedence:
     - ./obsidian-cli.toml (current directory)
     - ~/.config/obsidian-cli/config.toml (user's config directory)
+    - Hand-coded defaults
     """
 
-    editor: Path = Path("vi")
-    ident_key: str = "uid"
     blacklist: list[str] = field(default_factory=lambda: ["Assets/", ".obsidian/", ".git/"])
-    journal_template: str = "Calendar/{year}/{month:02d}/{year}-{month:02d}-{day:02d}"
-    vault: Optional[Path] = None
-    verbose: bool = False
-
     config_dirs: list[Path] = field(
         default_factory=lambda: [
             Path("obsidian-cli.toml"),
@@ -170,10 +171,19 @@ class Configuration:
             ),
         ]
     )
+    editor: Path = field(default_factory=lambda: Path("vi"))
+    ident_key: str = field(default="uid")
+    journal_template: str = field(
+        default="Calendar/{year}/{month:02d}/{year}-{month:02d}-{day:02d}"
+    )
+    vault: Optional[Path] = field(default=None)
+    verbose: bool = field(default=False)
 
     @classmethod
     def from_file(cls, path: Optional[Path] = None, verbose: bool = False) -> "Configuration":
         """Load configuration from a TOML file."""
+
+        # Initialize default configuration
         default = cls()
 
         config_data = {}
@@ -222,15 +232,15 @@ class Configuration:
             with open(path, "rb") as f:
                 config_data = tomllib.load(f)
         except tomllib.TOMLDecodeError as e:
-            typer.secho(f"Error parsing {path}: {e}", err=True, fg="red")
-            raise e
+            logger.error("Error parsing %s: %s", path, e)
+            raise
 
         return config_data
 
 
 @dataclass(frozen=True)
 class State:
-    """Record state for obsidian-cli application."""
+    """Record running state for obsidian-cli application."""
 
     editor: Path
     ident_key: str
@@ -297,20 +307,21 @@ def main(
             is_eager=True,
             help="Show version and exit.",
         ),
-    ] = None,  # pyright: ignore[reportUnusedParameter]
+    ] = None,
 ) -> None:
     """CLI operations for interacting with an Obsidian Vault."""
+    _ = version  # noqa: F841
 
-    # Configuration precedence:
+    # Configuration order of precedence:
     #   command line args > environment variables > config file > coded defaults
     try:
-        configuration = Configuration.from_file(config, verbose=(verbose is True))
+        configuration = Configuration.from_file(config, verbose=verbose is True)
     except FileNotFoundError:
         configuration = Configuration()
         if verbose is True:
-            logger.warn("No configuration file found, using coded defaults.")
+            logger.warning("No configuration file found, using coded defaults.")
     except Exception as e:
-        typer.secho(str(e), err=True, fg="red")
+        logger.error("Error loading configuration: %s", e)
         raise typer.Exit(code=2) from e
 
     # Get verbose setting from command line, config file, or default to False
@@ -325,19 +336,15 @@ def main(
 
     # Vault is required for all commands
     if vault is None:
-        typer.secho(
-            (
-                "Error: Vault path is required. Use --vault option"
-                " or specify 'vault' in a configuration file."
-            ),
-            err=True,
-            fg="red",
+        logger.error(
+            "Vault path is required."
+            " Use --vault option, OBSIDIAN_VAULT environment variable,"
+            " or specify 'vault' in a configuration file."
         )
         raise typer.Exit(code=2)
 
     if editor is None:
-        if configuration.editor:
-            editor = configuration.editor.expanduser()
+        editor = configuration.editor.expanduser()
 
     # Get blacklist directories from command line, config, or defaults
     # (in order of precedence)
@@ -361,11 +368,7 @@ def main(
         }
         journal_template.format(**test_vars)
     except (KeyError, ValueError) as e:
-        typer.secho(
-            f"Error: Invalid journal_template: {journal_template}",
-            err=True,
-            fg="red",
-        )
+        logger.error("Invalid journal_template: %s", journal_template)
         raise typer.Exit(code=1) from e
 
     # Create the application state
@@ -406,19 +409,14 @@ def add_uid(
 
         # Check if UID already exists
         if state.ident_key in post.metadata and not force:
-            typer.secho(
-                f"Page '{page_or_path}' already has UID: {post.metadata[state.ident_key]}",
-                err=True,
-                fg="red",
+            logger.error(
+                "Page '%s' already has UID: %s", page_or_path, post.metadata[state.ident_key]
             )
-            typer.secho("Use --force to replace it.", err=True, fg="yellow")
+            logger.info("Use --force to replace value of existing UID.")
             raise typer.Exit(code=1)
 
-        import uuid
-
         new_uuid = str(uuid.uuid4())
-        if state.verbose:
-            typer.echo(f"Generated new UUID: {new_uuid}")
+        logger.debug("Generated new UUID: %s", new_uuid)
 
         # Update frontmatter with the new UUID
         ctx.invoke(
@@ -464,19 +462,16 @@ def edit(ctx: typer.Context, page_or_path: PAGE_FILE) -> None:
 
     try:
         # Open the file in the configured editor
-        import subprocess
-
         subprocess.call([state.editor, filename])
     except FileNotFoundError as e:
-        typer.secho(
-            f"Error: '{state.editor}' command not found. "
-            f"Please ensure {state.editor} is installed and in your PATH.",
-            err=True,
-            fg="red",
+        logger.error(
+            "Error: '%s' command not found. Please ensure %s is installed and in your PATH.",
+            state.editor,
+            state.editor,
         )
         raise typer.Exit(code=2) from e
     except Exception as e:
-        typer.secho(f"An error occurred while editing {filename}", err=True, fg="red")
+        logger.error("An error occurred using %s while editing %s", state.editor, filename)
         raise typer.Exit(code=1) from e
 
     ctx.invoke(meta, ctx=ctx, page_or_path=page_or_path, key="modified", value=datetime.now())
@@ -512,75 +507,6 @@ def find(
     _display_find_results(matches, page_name, state.verbose, state.vault)
 
 
-def _get_vault_info(state: Union[Path, str]) -> dict[str, Any]:
-    """Get vault information as structured data.
-
-    Args:
-        state: State object containing vault configuration
-
-    Returns:
-        Dictionary containing vault information
-    """
-
-    # MCP server uses this function with state.vault as a string
-    vault_path = Path(state.vault)
-
-    if not vault_path.exists():
-        return {
-            "error": f"Vault not found at: {vault_path}",
-            "vault_path": str(vault_path),
-            "exists": False,
-        }
-
-    def _walk_vault(path: Path):
-        """Recursively walks a directory and yields Path objects for directories and files."""
-        yield path
-
-        for entry in path.iterdir():
-            if entry.is_dir():
-                # Recursively call for subdirectories
-                yield from _walk_vault(entry)
-            else:
-                # Yield file Path object
-                yield entry
-
-    summary: dict[str, dict[str, int]] = defaultdict(lambda: {"count": 0, "total_size": 0})
-
-    for entry in _walk_vault(vault_path):
-        if entry.is_dir():
-            summary["directories"]["count"] += 1
-            summary["directories"]["total_size"] += entry.lstat().st_size
-
-        elif entry.is_file():
-            summary["files"]["count"] += 1
-            summary[entry.suffix]["count"] += 1
-
-            try:
-                st_size = entry.lstat().st_size
-                summary["files"]["total_size"] += st_size
-                summary[entry.suffix]["total_size"] += st_size
-            except Exception:
-                pass
-
-    # Get journal template information
-    template_vars = _get_journal_template_vars(datetime.now())
-    journal_path_str = state.journal_template.format(**template_vars)
-
-    return {
-        "blacklist": state.blacklist,
-        "editor": state.editor,
-        "exists": True,
-        "journal_path": journal_path_str,
-        "journal_template": state.journal_template,
-        "markdown_files": summary[".md"]["count"],
-        "total_directories": summary["directories"]["count"],
-        "total_files": summary["files"]["count"],
-        "vault_path": str(vault_path),
-        "verbose": state.verbose,
-        "version": __version__,
-    }
-
-
 @cli.command()
 def info(ctx: typer.Context) -> None:
     """Display information about the current Obsidian Vault and configuration."""
@@ -589,7 +515,7 @@ def info(ctx: typer.Context) -> None:
     vault_info = _get_vault_info(state)
 
     if not vault_info["exists"]:
-        typer.secho(vault_info["error"], err=True, fg="red")
+        logger.error("Error getting vault info: %s", vault_info["error"])
         raise typer.Exit(code=1)
 
     # Display vault statistics
@@ -622,10 +548,8 @@ def journal(
         ),
     ] = None,
 ) -> None:
-    """Open a journal entry in the Obsidian Vault.
-
-    If --date is provided, open that date's entry (YYYY-MM-DD). Otherwise, open today's entry.
-    """
+    """Open a journal entry in the Obsidian Vault."""
+    # If --date is provided, open that date's entry (YYYY-MM-DD). Otherwise, open today's entry.
     state: State = ctx.obj
 
     # Determine target date
@@ -635,7 +559,7 @@ def journal(
         try:
             dt = datetime.strptime(date, "%Y-%m-%d")
         except ValueError as e:
-            typer.secho("Invalid --date format. Use YYYY-MM-DD.", err=True, fg="red")
+            logger.error("Invalid --date format. Use YYYY-MM-DD.")
             raise typer.Exit(code=1) from e
 
     # Build template variables from target date
@@ -645,21 +569,21 @@ def journal(
         journal_path_str = state.journal_template.format(**template_vars)
         page_path = Path(journal_path_str).with_suffix(".md")
     except KeyError as e:
-        typer.secho(f"Invalid template variable in journal_template: {e}", err=True, fg="red")
+        logger.error("Invalid template variable in journal_template: %s", e)
         raise typer.Exit(code=1) from e
     except Exception as e:
-        typer.secho(f"Error formatting journal template: {e}", err=True, fg="red")
+        logger.error("Error formatting journal template: %s", e)
         raise typer.Exit(code=1) from e
 
-    if state.verbose:
-        typer.echo(f"Using journal template: {state.journal_template}")
-        typer.echo(f"Resolved journal path: {page_path}")
+    logger.debug(
+        "Using journal template: %s\nResolved journal path: %s", state.journal_template, page_path
+    )
 
     try:
         # Open the journal for editing
         ctx.invoke(edit, ctx=ctx, page_or_path=page_path)
     except FileNotFoundError as e:
-        typer.secho(f"Journal entry '{page_path}' not found.", err=True, fg="red")
+        logger.error("Journal entry '%s' not found.", page_path)
         raise typer.Exit(code=2) from e
 
 
@@ -706,7 +630,7 @@ def meta(
     try:
         post = _get_frontmatter(filename)
     except FileNotFoundError as e:
-        typer.secho(e, err=True, fg="red")
+        logger.error("File not found: %s", e)
         raise typer.Exit(code=2) from e
 
     try:
@@ -719,13 +643,10 @@ def meta(
             _update_metadata_key(post, filename, key, value, state.verbose)
 
     except KeyError as e:
-        typer.secho(
-            f"Key '{key}' not found in frontmatter of '{page_or_path}'",
-            err=True,
-            fg="red",
-        )
+        logger.error("Property '%s' not found in frontmatter of '%s'", key, page_or_path)
         raise typer.Exit(code=1) from e
     except Exception as e:
+        logger.error("Error updating metadata key '%s' in '%s': %s", key, page_or_path, e)
         raise typer.Exit(code=1) from e
 
 
@@ -741,14 +662,14 @@ def new(
     # For new files, we check if it exists first, but don't use _resolve_path
     # since we expect the file to not exist yet
     filename = state.vault / page_or_path.with_suffix(".md")
-    if filename.exists() and not force:
-        typer.secho(f"File already exists: {filename}", err=True, fg="red")
-        raise typer.Exit(code=1) from FileExistsError(
-            errno.EEXIST, "File already exists", str(filename)
-        )
-    elif filename.exists() and force:
-        if state.verbose:
-            typer.secho(f"Overwriting existing file: {filename}", fg="yellow")
+    if filename.exists():
+        if force:
+            logger.debug("Overwriting existing file: %s", filename)
+        else:
+            logger.error("File already exists: %s", filename)
+            raise typer.Exit(code=1) from FileExistsError(
+                errno.EEXIST, "File already exists", str(filename)
+            )
 
     try:
         # Create parent directories if they don't exist
@@ -764,11 +685,8 @@ def new(
 
             # Use the piped content for the file
             post = frontmatter.Post(content)
-            if state.verbose:
-                typer.echo("Using content from stdin")
+            logger.debug("Using content from stdin")
         else:
-            from mdutils.mdutils import MdUtils
-
             md_file = MdUtils(file_name=str(filename), title=title, title_header_style="atx")
             post = frontmatter.Post(md_file.get_md_text())
 
@@ -778,15 +696,12 @@ def new(
         post["modified"] = created_time
         post["title"] = title
 
-        import uuid
-
         post[state.ident_key] = str(uuid.uuid4())
 
         # Write to file with frontmatter
         with open(filename, "w", encoding="utf-8") as f:
             f.write(frontmatter.dumps(post) + "\n\n")
-        if state.verbose:
-            typer.echo(f"Created new file: {filename}")
+        logger.debug("Created new file: %s", filename)
 
         # Now edit the file if we're not using stdin
         # (if using stdin, the file already has content)
@@ -798,6 +713,56 @@ def new(
 
 
 class QueryOutputStyle(StrEnum):
+    """Enumeration of available output formats for the query command.
+
+    This enum defines the different ways query results can be displayed to the user.
+    Each style provides a different level of detail and formatting appropriate for
+    different use cases.
+
+    Attributes:
+        JSON: Output results as structured JSON with full frontmatter metadata.
+              Includes file path, complete frontmatter, and queried value.
+              Best for programmatic processing and data exchange.
+
+        PATH: Output only the relative file paths of matching files.
+              Minimal output format, one path per line.
+              Best for simple file listing and shell scripting.
+
+        TABLE: Output results in a formatted table with columns for Path, Property, and Value.
+               Shows all frontmatter properties for each matching file.
+               Best for human-readable overview of file metadata.
+
+        TITLE: Output file paths with their titles from frontmatter.
+               Format: "path: title" (falls back to filename if no title).
+               Best for quick identification of files by their titles.
+
+    Example:
+        # PATH format
+        notes/project-a.md
+        notes/project-b.md
+
+        # TITLE format
+        notes/project-a.md: Project Alpha Documentation
+        notes/project-b.md: Project Beta Planning
+
+        # TABLE format (rich table with headers)
+        ┌─────────────────────┬──────────┬─────────────────┐
+        │ Path                │ Property │ Value           │
+        ├─────────────────────┼──────────┼─────────────────┤
+        │ notes/project-a.md  │ title    │ Project Alpha   │
+        │                     │ tags     │ [dev, docs]     │
+        └─────────────────────┴──────────┴─────────────────┘
+
+        # JSON format
+        [
+          {
+            "path": "notes/project-a.md",
+            "frontmatter": {"title": "Project Alpha", "tags": ["dev", "docs"]},
+            "value": ["dev", "docs"]
+          }
+        ]
+    """
+
     JSON = "json"
     PATH = "path"
     TABLE = "table"
@@ -824,9 +789,9 @@ def query(
         bool,
         typer.Option("--missing", help="Find pages where the key is missing", show_default=False),
     ] = False,
-    format: Annotated[
+    style: Annotated[
         QueryOutputStyle,
-        typer.Option("--format", "-f", help="Output format style", case_sensitive=False),
+        typer.Option("--style", "-s", help="Output format style", case_sensitive=False),
     ] = QueryOutputStyle.PATH,
     count: Annotated[
         bool,
@@ -843,19 +808,18 @@ def query(
 
     # Check for conflicting options
     if value is not None and contains is not None:
-        typer.secho("Error: Cannot specify both --value and --contains", err=True, fg="red")
+        logger.error("Error: Cannot specify both --value and --contains")
         raise typer.Exit(code=1)
 
-    if state.verbose:
-        typer.echo(f"Searching for frontmatter key: '{key}'")
-        if value is not None:
-            typer.echo(f"Filtering for exact value: '{value}'")
-        if contains is not None:
-            typer.echo(f"Filtering for substring: '{contains}'")
-        if exists:
-            typer.echo("Filtering for key existence")
-        if missing:
-            typer.echo("Filtering for key absence")
+    logger.debug("Searching for frontmatter key: %s", key)
+    if value is not None:
+        logger.debug("Filtering for exact value: %s", value)
+    if contains is not None:
+        logger.debug("Filtering for substring: %s", contains)
+    if exists:
+        logger.debug("Filtering for key existence")
+    if missing:
+        logger.debug("Filtering for key absence")
 
     # Find all markdown files in the vault
     matches = []
@@ -866,8 +830,7 @@ def query(
 
             # Skip files in blacklisted directories
             if _check_if_path_blacklisted(rel_path, state.blacklist):
-                if state.verbose:
-                    typer.echo(f"Skipping excluded file: {rel_path}", err=True)
+                logger.debug("Skipping excluded file: %s", rel_path)
                 continue
 
             # Parse frontmatter
@@ -899,19 +862,13 @@ def query(
             matches.append((rel_path, post))
 
         except Exception as e:
-            # Skip files with issues
-            if state.verbose:
-                typer.echo(
-                    f"Warning: Could not process {file_path}: {e}",
-                    err=True,
-                    fg="yellow",
-                )
+            logger.warning("Could not process %s: %s", file_path, e)
 
     # Display results
     if count:
         typer.echo(f"Found {len(matches)} matching files")
     else:
-        _display_query_results(matches, format, key)
+        _display_query_results(matches, style, key)
 
 
 @cli.command()
@@ -932,9 +889,9 @@ def rm(
     try:
         # Remove the file
         filename.unlink()
-        if state.verbose:
-            typer.echo(f"File removed: {filename}")
+        logger.debug("File removed: %s", filename)
     except Exception as e:
+        logger.error("Error removing file: %s", e)
         raise typer.Exit(code=1) from e
 
 
@@ -954,32 +911,23 @@ def serve(ctx: typer.Context) -> None:
     state: State = ctx.obj
 
     try:
-        import asyncio
-
-        from .mcp_server import serve_mcp
+        pass  # imports already at top
     except ImportError as e:
-        typer.secho(
+        logger.error(
             (
-                f"Error: MCP dependencies not installed. "
-                f"Please install with: pip install mcp\n"
-                f"Details: {e}"
+                "Error: MCP dependencies not installed. Please install with:"
+                " pip install mcp\nDetails: %s"
             ),
-            err=True,
-            fg="red",
+            e,
         )
         raise typer.Exit(1) from e
 
-    if state.verbose:
-        typer.echo(f"Starting MCP server for vault: {state.vault}")
-        typer.echo("Server will run until interrupted (Ctrl+C)")
+    logger.debug("Starting MCP server for vault: %s", state.vault)
+    logger.info("Server will run until interrupted (Ctrl+C)")
 
     # Set up signal handling to suppress stack traces
-    import signal
-    import sys
-
     def signal_handler(signum, frame):
-        if state.verbose:
-            typer.echo("\nMCP server stopped.")
+        logger.debug("MCP server stopped.")
         sys.exit(0)
 
     signal.signal(signal.SIGINT, signal_handler)
@@ -989,25 +937,32 @@ def serve(ctx: typer.Context) -> None:
         # Run the MCP server
         asyncio.run(serve_mcp(ctx, state))
     except (KeyboardInterrupt, CancelledError):
-        if state.verbose:
-            typer.echo("\nMCP server stopped.")
+        logger.debug("MCP server stopped.")
         # Ensure output is flushed before exiting
-        import sys
-
         sys.stdout.flush()
         sys.stderr.flush()
         # Return without raising to prevent any stack trace
         return
     except Exception as e:
-        import traceback
-
-        typer.secho(f"Error starting MCP server: {e}", err=True, fg="red")
-        if state.verbose:
-            typer.secho(f"Traceback: {traceback.format_exc()}", err=True, fg="red")
+        logger.error("Error starting MCP server: %s", e)
+        logger.debug("Traceback: %s", traceback.format_exc())
         raise typer.Exit(1) from e
 
 
 class TyperLoggerHandler(logging.Handler):
+    """Custom logging handler that outputs colored log messages using typer.
+
+    This handler formats log messages with appropriate colors based on the log level:
+    - DEBUG: Black text
+    - INFO: Bright blue text
+    - WARNING: Bright magenta text
+    - ERROR: Bright white text on red background
+    - CRITICAL: Bright red text
+
+    The handler uses typer.secho() to output colored text to the terminal,
+    providing better visual distinction between different log levels.
+    """
+
     def emit(self, record: logging.LogRecord) -> None:
         (fg, bg) = (None, None)
         match record.levelno:
@@ -1022,7 +977,8 @@ class TyperLoggerHandler(logging.Handler):
             case logging.ERROR:
                 fg = typer.colors.BRIGHT_WHITE
                 bg = typer.colors.RED
-        typer.secho(self.format(record), bg=bg, fg=fg)
+        # Expected output is written to stdout with or without styling
+        typer.secho(self.format(record), bg=bg, fg=fg, err=True)
 
 
 if __name__ == "__main__":

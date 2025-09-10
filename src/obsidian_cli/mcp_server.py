@@ -242,7 +242,7 @@ async def handle_get_vault_info(ctx: typer.Context, state, args: dict) -> list:
     from mcp.types import TextContent
 
     try:
-        from .main import _get_vault_info
+        from .utils import _get_vault_info
 
         vault_info = _get_vault_info(state)
 

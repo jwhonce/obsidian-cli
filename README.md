@@ -2,6 +2,10 @@
 
 A command-line interface for interacting with Obsidian vaults with AI assistant integration via Model Context Protocol (MCP).
 
+[![Test Coverage](https://img.shields.io/badge/coverage-78%25-brightgreen.svg)](https://github.com/jhonce/obsidian-cli)
+[![Version](https://img.shields.io/badge/version-0.1.14-blue.svg)](https://github.com/jhonce/obsidian-cli)
+[![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
+
 ## Features
 
 - **Note Management**: Create, edit, and delete notes with frontmatter support
@@ -10,6 +14,7 @@ A command-line interface for interacting with Obsidian vaults with AI assistant 
 - **UID Management**: Add unique identifiers to notes for better organization
 - **MCP Server**: AI assistant integration via Model Context Protocol
 - **Flexible Configuration**: TOML-based configuration with sensible defaults
+- **Comprehensive Testing**: 78% test coverage with 117 tests ensuring reliability
 
 ## Installation
 
@@ -56,14 +61,17 @@ verbose = false
 ### Core Commands
 
 - `add-uid` - Add unique identifiers to notes
+- `cat` - Display the contents of a file
 - `edit` - Open a note in your configured editor
+- `find` - Find files by name or title with exact/fuzzy matching
+- `info` - Display vault and configuration information
 - `journal` - Open today's journal entry
 - `ls` - List all notes in the vault
+- `meta` - View or update frontmatter metadata
 - `new` - Create a new note with optional frontmatter
 - `query` - Search and filter notes by frontmatter properties
 - `rm` - Remove notes from the vault
 - `serve` - Start MCP server for AI assistant integration
-- `version` - Display version information
 
 ### Command: ls
 
@@ -101,14 +109,23 @@ See also: [docs/commands/ls.md](docs/commands/ls.md)
 ### Examples
 
 ```bash
-# Create a note with frontmatter
-obsidian-cli new "Project Ideas" --tags work,brainstorm --status active
+# Create a new note
+obsidian-cli new "Project Ideas"
 
 # Query notes by status
 obsidian-cli query status --value active
 
-# Group query results by category
-obsidian-cli query status --exists --group-by category
+# Find notes containing specific text
+obsidian-cli find "meeting notes" --exact
+
+# Display vault information
+obsidian-cli info
+
+# View metadata of a note
+obsidian-cli meta "Project Ideas"
+
+# Update metadata
+obsidian-cli meta "Project Ideas" --key status --value completed
 
 # Open journal with custom date
 obsidian-cli journal --date 2025-01-15
@@ -133,12 +150,26 @@ The journal template supports these variables:
 
 ## MCP Integration
 
-The `serve` command starts a Model Context Protocol server that exposes vault operations to AI assistants:
+The `serve` command starts a Model Context Protocol server that exposes vault operations to AI assistants. This enables seamless integration with AI tools like Claude Desktop and other MCP-compatible systems.
+
+### Available MCP Tools
 
 - `create_note` - Create new notes with frontmatter
-- `find_notes` - Search notes by various criteria
+- `find_notes` - Search notes by various criteria  
 - `get_note_content` - Retrieve note content and metadata
 - `get_vault_info` - Get vault statistics and information
+
+### Usage with AI Assistants
+
+```bash
+# Start the MCP server
+obsidian-cli --vault /path/to/vault serve
+
+# The server runs until interrupted (Ctrl+C)
+# AI assistants can now interact with your vault through MCP protocol
+```
+
+For detailed MCP setup instructions, see [docs/mcp-integration.md](docs/mcp-integration.md).
 
 ## License
 

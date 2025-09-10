@@ -41,20 +41,25 @@ class TestIsolated(unittest.TestCase):
 
     def test_error_handling_missing_vault(self):
         """Test error handling when vault is missing."""
-        result = self.runner.invoke(cli, ["info"])
+        from unittest.mock import patch
+        
+        with patch('obsidian_cli.main.logger') as mock_logger:
+            result = self.runner.invoke(cli, ["info"])
 
-        # The CLI should exit with code 2 when vault is missing
-        self.assertEqual(result.exit_code, 2)
-        # Check for vault-related error in stderr or stdout
-        error_output = (result.stderr or "") + (result.stdout or "")
-        self.assertTrue(
-            "Vault path is required" in error_output
-            or "vault" in error_output.lower()
-            or len(error_output) > 0  # At least some error output
-        )
+            # The CLI should exit with code 2 when vault is missing
+            self.assertEqual(result.exit_code, 2)
+            
+            # Verify that the vault error was logged
+            mock_logger.error.assert_called_once_with(
+                "Vault path is required."
+                " Use --vault option, OBSIDIAN_VAULT environment variable,"
+                " or specify 'vault' in a configuration file."
+            )
 
     def test_journal_command_invalid_template(self):
         """Test journal command with invalid template variable."""
+        from unittest.mock import patch
+        
         # Create a config file with invalid template
         config_file = self.vault_path / "bad-journal-config.toml"
         config_content = f'''
@@ -64,15 +69,14 @@ journal_template = "Journal/{{invalid_var}}/{{year}}"
         with open(config_file, "w", encoding="utf-8") as f:
             f.write(config_content)
 
-        result = self.runner.invoke(cli, ["--config", str(config_file), "journal"])
-        self.assertEqual(result.exit_code, 1)  # Template validation error -> exit code 1
-        error_output = (result.stderr or "") + (result.stdout or "")
-        self.assertTrue(
-            "Invalid" in error_output
-            or "journal_template" in error_output
-            or "template" in error_output.lower()
-            or len(error_output) > 0  # At least some error output
-        )
+        with patch('obsidian_cli.main.logger') as mock_logger:
+            result = self.runner.invoke(cli, ["--config", str(config_file), "journal"])
+            self.assertEqual(result.exit_code, 1)  # Template validation error -> exit code 1
+            
+            # Verify that the invalid template error was logged
+            mock_logger.error.assert_called_once_with(
+                "Invalid journal_template: %s", "Journal/{invalid_var}/{year}"
+            )
 
     def test_toml_config_default_paths(self):
         """Test automatic config loading from default paths."""

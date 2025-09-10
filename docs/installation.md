@@ -2,7 +2,7 @@
 
 ## Prerequisites
 
-- Python 3.6 or higher
+- Python 3.11 or higher (required for TOML support)
 - pip (Python package installer)
 - An Obsidian vault you want to manage
 
@@ -11,30 +11,27 @@
 The recommended way to install obsidian-cli is through PyPI:
 
 ```bash
-# Standard installation
+# Standard installation (includes MCP support)
 pip install obsidian-cli
-
-# Installation with MCP support for AI assistant integration
-pip install obsidian-cli[mcp]
 ```
 
-The `[mcp]` extra installs additional dependencies required for the MCP (Model Context Protocol) server functionality.
+The standard installation includes all necessary dependencies including MCP (Model Context Protocol) support for AI assistant integration.
 
 ### Installation Options
 
-- **Standard**: `pip install obsidian-cli` - Core CLI functionality only
-- **Full with MCP**: `pip install obsidian-cli[mcp]` - Includes MCP server for AI assistant integration
-- **Development**: `pip install obsidian-cli[dev]` - Includes development dependencies for contributing
+- **Standard**: `pip install obsidian-cli` - Complete functionality including MCP server
+- **Development**: `pip install -e .` - Development installation from source
 
-### MCP Dependencies
+### Dependencies Included
 
-If you installed the standard version and later want to add MCP support:
+The standard installation includes:
 
-```bash
-pip install mcp>=1.0.0
-```
-
-This will install the required Model Context Protocol dependencies for AI assistant integration.
+- Core CLI functionality
+- MCP server for AI assistant integration  
+- TOML configuration support
+- Frontmatter parsing
+- Rich terminal output
+- All testing dependencies
 
 ## Installing from Source
 
@@ -42,18 +39,18 @@ For development purposes or to get the latest unreleased features, you can insta
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/obsidian-cli.git
+git clone https://github.com/jhonce/obsidian-cli.git
 cd obsidian-cli
 
 # Create and activate virtual environment
 python -m venv venv
 source venv/bin/activate  # On Windows: venv\Scripts\activate
 
-# Install dependencies
-pip install -r requirements.txt
-
-# Install the package in development mode
+# Install in development mode (includes all dependencies)
 pip install -e .
+
+# Alternatively, use the Makefile for development setup
+make dev
 ```
 
 ## Verifying Installation
@@ -61,31 +58,33 @@ pip install -e .
 After installation, you can verify that the tool was installed correctly:
 
 ```bash
-# Check version
+# Check version (should show v0.1.14)
 obsidian-cli --version
 
 # Verify core functionality
 obsidian-cli --help
 
-# Test MCP server availability (if MCP dependencies are installed)
+# Test MCP server availability
 obsidian-cli serve --help
 ```
 
-### MCP Installation Verification
+### Installation Verification
 
-To verify that MCP dependencies are properly installed:
+To verify that all components are properly installed:
 
 ```bash
-# Test MCP server startup (will show help if dependencies are missing)
-obsidian-cli --vault /path/to/test/vault serve --help
+# Test with a sample vault (create a test directory)
+mkdir -p /tmp/test-vault
+obsidian-cli --vault /tmp/test-vault info
 
-# Check if MCP module is available
-python -c "import mcp; print('MCP dependencies installed successfully')"
+# Verify MCP server can start
+obsidian-cli --vault /tmp/test-vault serve --help
+
+# Check test coverage (for development installations)
+make coverage  # if installed from source
 ```
 
-If MCP dependencies are missing, you'll see an error message with installation instructions.
-
-This should display the current version of the tool.
+This should display version 0.1.14 and show no errors.
 
 ## Configuration After Installation
 

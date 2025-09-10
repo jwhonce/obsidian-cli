@@ -392,6 +392,8 @@ verbose = false
 
     def test_vault_required_error(self):
         """Test that commands fail without vault specified."""
+        from unittest.mock import patch
+        
         # Create completely isolated environment to ensure no config files are loaded
         old_cwd = os.getcwd()
         old_xdg_config = os.environ.get("XDG_CONFIG_HOME")
@@ -413,16 +415,19 @@ verbose = false
                 # Use a completely isolated runner
                 isolated_runner = CliRunner()
 
-                # Test with a command that requires vault but don't provide one
-                result = isolated_runner.invoke(cli, ["info"])
+                with patch('obsidian_cli.main.logger') as mock_logger:
+                    # Test with a command that requires vault but don't provide one
+                    result = isolated_runner.invoke(cli, ["info"])
 
-                # Should exit with code 2 when vault is missing
-                self.assertEqual(result.exit_code, 2)
-                error_output = (result.stderr or "") + (result.stdout or "")
-                self.assertTrue(
-                    "Vault path is required" in error_output or "vault" in error_output.lower(),
-                    f"Expected vault error message, got: {error_output}",
-                )
+                    # Should exit with code 2 when vault is missing
+                    self.assertEqual(result.exit_code, 2)
+                    
+                    # Verify that the vault error was logged
+                    mock_logger.error.assert_called_once_with(
+                        "Vault path is required."
+                        " Use --vault option, OBSIDIAN_VAULT environment variable,"
+                        " or specify 'vault' in a configuration file."
+                    )
 
             finally:
                 # Restore original environment
@@ -473,7 +478,7 @@ verbose = false
         """Test JSON output format for query commands."""
         self.create_test_file("note1", "Content 1", status="active", priority="high")
 
-        result = self.run_cli_command(["query", "status", "--exists", "--format", "json"])
+        result = self.run_cli_command(["query", "status", "--exists", "--style", "json"])
 
         self.assertEqual(result.exit_code, 0)
 
