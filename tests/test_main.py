@@ -404,55 +404,18 @@ blacklist = ["temp/", "cache/"]
         self.assertIn("obsidian-cli", result.stdout)
 
     def test_vault_required_error(self):
-        """Test that commands fail without vault specified."""
-        from unittest.mock import patch
+        """Test that missing vault path triggers proper error handling."""
+        # Mock Configuration to return None vault
+        with patch("obsidian_cli.utils.Configuration.from_path") as mock_config:
+            mock_config.return_value = (None, Configuration(vault=None))
 
-        # Create completely isolated environment to ensure no config files are loaded
-        old_cwd = os.getcwd()
-        old_xdg_config = os.environ.get("XDG_CONFIG_HOME")
-        old_home = os.environ.get("HOME")
+            result = self.runner.invoke(cli, ["info"])
 
-        with tempfile.TemporaryDirectory() as temp_dir:
-            try:
-                # Set up completely isolated environment
-                os.chdir(temp_dir)
-                isolated_config_dir = Path(temp_dir) / "isolated_config"
-                isolated_home = Path(temp_dir) / "isolated_home"
-                isolated_config_dir.mkdir()
-                isolated_home.mkdir()
+            # Should exit with code 2 (typer.BadParameter behavior)
+            self.assertEqual(result.exit_code, 2)
 
-                # Override environment variables to prevent config loading
-                os.environ["XDG_CONFIG_HOME"] = str(isolated_config_dir)
-                os.environ["HOME"] = str(isolated_home)
-
-                # Use a completely isolated runner
-                isolated_runner = CliRunner()
-
-                with patch("obsidian_cli.main.logger") as mock_logger:
-                    # Test with a command that requires vault but don't provide one
-                    result = isolated_runner.invoke(cli, ["info"])
-
-                    # Should exit with code 2 when vault is missing
-                    self.assertEqual(result.exit_code, 2)
-
-                    # Verify that the vault error was logged
-                    mock_logger.error.assert_called_once_with(
-                        "Vault path is required."
-                        " Use --vault option, OBSIDIAN_VAULT environment variable,"
-                        " or specify 'vault' in a configuration file."
-                    )
-
-            finally:
-                # Restore original environment
-                os.chdir(old_cwd)
-                if old_xdg_config is not None:
-                    os.environ["XDG_CONFIG_HOME"] = old_xdg_config
-                elif "XDG_CONFIG_HOME" in os.environ:
-                    del os.environ["XDG_CONFIG_HOME"]
-                if old_home is not None:
-                    os.environ["HOME"] = old_home
-                elif "HOME" in os.environ:
-                    del os.environ["HOME"]
+            # Should contain the error message in output (typer.BadParameter displays it)
+            self.assertIn("Vault path is required", result.output)
 
     def test_blacklist_functionality(self):
         """Test that blacklist are properly excluded."""

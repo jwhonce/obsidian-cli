@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import errno
 import json
 import os
 import tomllib
@@ -19,6 +18,50 @@ from rich.table import Table
 
 if TYPE_CHECKING:
     from .main import State
+
+
+class ObsidianFileError(FileError):
+    """Project-specific FileError with enhanced functionality.
+
+    Encapsulates click.FileError with improved handling of file paths, messages,
+    and exit codes for obsidian-cli specific operations.
+
+    Attributes:
+        file_path: Path to the file that caused the error
+        message: Human-readable error message
+        exit_code: Exit code to use when this error causes program termination
+
+    Example:
+        >>> error = ObsidianFileError("config.toml", "Configuration file not found", 12)
+        >>> raise error
+    """
+
+    def __init__(self, file_path: Union[str, Path], message: Optional[str], exit_code: int = 12):
+        """Initialize the ObsidianFileError.
+
+        Args:
+            file_path: Path to the file that caused the error (str or Path)
+            message: Human-readable error message describing the issue
+            exit_code: Exit code to use when this error terminates the program (default: 12)
+        """
+        # Call parent FileError constructor
+        super().__init__(str(file_path), message)
+
+        # Store additional attributes from grandparent Exception
+        self.exit_code = exit_code
+
+    def __str__(self) -> str:
+        """Return a formatted error message."""
+        return f"{self.message}: {self.ui_filename}"
+
+    def __repr__(self) -> str:
+        """Return a detailed representation for debugging."""
+        return (
+            f"ObsidianFileError("
+            f"filename={self.ui_filename!r}, "
+            f"message={self.message!r}, "
+            f"exit_code={self.exit_code})"
+        )
 
 
 def _check_if_path_blacklisted(rel_path: Path, blacklist: list[str]) -> bool:
@@ -140,8 +183,7 @@ def _display_query_results(
     Returns:
         None: Results are printed directly to stdout.
     """
-
-    from .main import QueryOutputStyle  # local import to avoid cycle at import time
+    from .main import QueryOutputStyle  # Runtime import to avoid circular dependency
 
     if not matches:
         typer.echo("No matching files found", err=True, color="yellow")
@@ -317,9 +359,7 @@ def _resolve_path(page_or_path: Path, vault: Path) -> Path:
     if filename.exists():
         return filename
 
-    e = FileError(page_or_path, f"Page or File not found in vault: {vault}")
-    e.exit_code = 2
-    raise e
+    raise ObsidianFileError(page_or_path, f"Page or File not found in vault: {vault}")
 
 
 def _update_metadata_key(
@@ -479,12 +519,10 @@ class Configuration:
                         config_data = cls._load_toml_config(p, verbose)
                         file = p
                         break
-                    except FileNotFoundError:
+                    except ObsidianFileError:
                         continue
             if not config_data.keys():
-                raise FileNotFoundError(
-                    errno.ENOENT, "Provided configuration file(s) not found", str(path)
-                )
+                raise ObsidianFileError(path, "Provided configuration file(s) not found")
         else:
             # Search default locations
             for entry in default.config_dirs:
@@ -492,7 +530,7 @@ class Configuration:
                     config_data = cls._load_toml_config(entry, verbose)
                     file = entry
                     break
-                except FileNotFoundError:
+                except ObsidianFileError:
                     continue
 
         return (
@@ -521,10 +559,10 @@ class Configuration:
             dict: Configuration dictionary
 
         Raises:
-            FileNotFoundError: When configuration file is not found
+            ObsidianFileError: When configuration file is not found
         """
         if not path.exists():
-            raise FileNotFoundError(errno.ENOENT, "Configuration file not found", str(path))
+            raise ObsidianFileError(path, "Configuration file not found")
 
         if verbose:
             typer.echo(f"Parsing configuration from: {path}")

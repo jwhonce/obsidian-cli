@@ -91,6 +91,7 @@ import logging
 import signal
 import subprocess
 import sys
+import tomllib
 import traceback
 import uuid
 from asyncio import CancelledError
@@ -109,6 +110,7 @@ from typing_extensions import Doc
 from .mcp_server import serve_mcp
 from .utils import (
     Configuration,
+    ObsidianFileError,
     _check_if_path_blacklisted,
     _display_find_results,
     _display_metadata_key,
@@ -228,9 +230,12 @@ def main(
     #   command line args > environment variables > config file > coded default
     try:
         (source, configuration) = Configuration.from_path(config, verbose=verbose is True)
+    except ObsidianFileError:
+        raise
+    except tomllib.TOMLDecodeError as e:
+        raise typer.UsageError("Error parsing TOML configuration file.") from e
     except Exception as e:
-        typer.secho(f"Error loading configuration: {e}", err=True, fg=typer.colors.RED)
-        raise typer.Exit(code=2) from e
+        raise typer.UsageError("Error loading configuration.") from e
 
     if verbose is None:
         verbose = configuration.verbose
@@ -244,12 +249,15 @@ def main(
         vault = configuration.vault
         # Vault is required for all commands
         if vault is None:
-            logger.error(
-                "Vault path is required."
-                " Use --vault option, OBSIDIAN_VAULT environment variable,"
-                " or specify 'vault' in a configuration file."
+            raise typer.BadParameter(
+                (
+                    "Vault path is required."
+                    " Use --vault option, OBSIDIAN_VAULT environment variable,"
+                    " or specify 'vault' in a configuration file."
+                ),
+                ctx=ctx,
+                param_hint="--vault",
             )
-            raise typer.Exit(code=2)
     vault = vault.expanduser().resolve()
 
     if editor is None:
