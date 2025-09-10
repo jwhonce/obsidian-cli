@@ -16,8 +16,8 @@ from unittest.mock import patch
 
 from typer.testing import CliRunner
 
-from obsidian_cli.main import Configuration, State, TyperLoggerHandler, cli
-from obsidian_cli.utils import _get_vault_info
+from obsidian_cli.main import State, TyperLoggerHandler, cli
+from obsidian_cli.utils import Configuration, _get_vault_info
 
 
 class TestCoverageImprovements(unittest.TestCase):
@@ -57,7 +57,7 @@ class TestCoverageImprovements(unittest.TestCase):
                 try:
                     # Mock Configuration.from_path to return (None, default_config)
                     # simulating no config file found - the key is source=None
-                    with patch("obsidian_cli.main.Configuration.from_path") as mock_from_path:
+                    with patch("obsidian_cli.utils.Configuration.from_path") as mock_from_path:
                         mock_config = Configuration()  # Use default config (verbose=False)
                         # This is the critical part - source must be None (not False or empty)
                         mock_from_path.return_value = (None, mock_config)
@@ -148,7 +148,7 @@ invalid_syntax ===== "broken"
 
                     with patch("obsidian_cli.main.logger") as mock_logger:
                         # Mock Configuration.from_path to return config without vault
-                        with patch("obsidian_cli.main.Configuration.from_path") as mock_from_path:
+                        with patch("obsidian_cli.utils.Configuration.from_path") as mock_from_path:
                             mock_config = Configuration(vault=None)
                             mock_from_path.return_value = (None, mock_config)
 
@@ -177,7 +177,7 @@ invalid_syntax ===== "broken"
                 # Mock Configuration.from_path to raise an exception
                 mock_exception = Exception("Test configuration error")
 
-                with patch("obsidian_cli.main.Configuration.from_path") as mock_from_path:
+                with patch("obsidian_cli.utils.Configuration.from_path") as mock_from_path:
                     mock_from_path.side_effect = mock_exception
 
                     result = self.runner.invoke(cli, ["info"])

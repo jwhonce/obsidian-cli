@@ -1,10 +1,14 @@
 from __future__ import annotations
 
+import errno
 import json
+import os
+import tomllib
 from collections import defaultdict
+from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Optional, Tuple, Union
 
 import frontmatter
 import typer
@@ -416,3 +420,119 @@ def _get_vault_info(state: "State") -> dict[str, Any]:
         "verbose": state.verbose,
         "version": __version__,
     }
+
+
+@dataclass(frozen=True)
+class Configuration:
+    """Record configuration for obsidian-cli application.
+
+    Default order of precedence:
+    - ./obsidian-cli.toml (current directory)
+    - ~/.config/obsidian-cli/config.toml (user's config directory)
+    - Hand-coded defaults
+
+    Note: logging is not configured until after config file is read to support
+    verbose flag in config file.
+    """
+
+    # TODO: Is typer.echo(f"{typer.get_app_dir('obsidian-cli')}") a better way to
+    #   determine config path?
+
+    blacklist: list[str] = field(default_factory=lambda: ["Assets/", ".obsidian/", ".git/"])
+    config_dirs: list[Path] = field(
+        default_factory=lambda: [
+            Path("obsidian-cli.toml"),
+            (
+                Path(os.environ.get("XDG_CONFIG_HOME", "~/.config")).expanduser()
+                / "obsidian-cli"
+                / "config.toml"
+            ),
+        ]
+    )
+    editor: Path = field(default_factory=lambda: Path("vi"))
+    ident_key: str = field(default="uid")
+    journal_template: str = field(
+        default="Calendar/{year}/{month:02d}/{year}-{month:02d}-{day:02d}"
+    )
+    vault: Optional[Path] = field(default=None)
+    verbose: bool = field(default=False)
+
+    @classmethod
+    def from_path(
+        cls, path: Optional[Union[str, Path]] = None, verbose: bool = False
+    ) -> Tuple[Union[Path | None], "Configuration"]:
+        """Load configuration from a TOML file."""
+
+        # Initialize default configuration
+        default = cls()
+
+        file = None
+        config_data = {}
+        if path:
+            if isinstance(path, Path):
+                config_data = cls._load_toml_config(path, verbose)
+                file = path
+            elif isinstance(path, str):
+                for entry in path.split(":"):
+                    try:
+                        p = Path(entry)
+                        config_data = cls._load_toml_config(p, verbose)
+                        file = p
+                        break
+                    except FileNotFoundError:
+                        continue
+            if not config_data.keys():
+                raise FileNotFoundError(
+                    errno.ENOENT, "Provided configuration file(s) not found", str(path)
+                )
+        else:
+            # Search default locations
+            for entry in default.config_dirs:
+                try:
+                    config_data = cls._load_toml_config(entry, verbose)
+                    file = entry
+                    break
+                except FileNotFoundError:
+                    continue
+
+        return (
+            file,
+            cls(
+                blacklist=config_data.get(
+                    "blacklist", config_data.get("ignored_directories", default.blacklist)
+                ),
+                editor=Path(config_data.get("editor", default.editor)),
+                ident_key=config_data.get("ident_key", default.ident_key),
+                journal_template=config_data.get("journal_template", default.journal_template),
+                vault=Path(config_data["vault"]) if config_data.get("vault") else None,
+                verbose=config_data.get("verbose", default.verbose),
+            ),
+        )
+
+    @staticmethod
+    def _load_toml_config(path: Path, verbose: bool = False) -> Union[dict[str, Any] | None]:
+        """Load TOML configuration from the specified path or default locations.
+
+        Args:
+            path: Specific config file path
+            verbose: Whether to print parsing messages
+
+        Returns:
+            dict: Configuration dictionary
+
+        Raises:
+            FileNotFoundError: When configuration file is not found
+        """
+        if not path.exists():
+            raise FileNotFoundError(errno.ENOENT, "Configuration file not found", str(path))
+
+        if verbose:
+            typer.echo(f"Parsing configuration from: {path}")
+
+        try:
+            with open(path, "rb") as f:
+                return tomllib.load(f)
+        except tomllib.TOMLDecodeError as e:
+            typer.secho(f"Error parsing {path}: {e}", err=True, fg=typer.colors.RED)
+            raise
+        return None
