@@ -144,7 +144,7 @@ logger = logging.getLogger(__name__)
 
 
 def _version(value: bool) -> None:
-    """Print version and exit."""
+    """Callback to print version and exit."""
     if value:
         typer.echo(f"obsidian-cli v{__version__}")
         raise typer.Exit()
@@ -240,20 +240,22 @@ def main(
         logger.info("Hard-coded defaults will be used as no config file was found.")
 
     # Apply configuration values if CLI arguments are not provided
-    if vault is None and configuration.vault is not None:
-        vault = configuration.vault.expanduser()
-
-    # Vault is required for all commands
     if vault is None:
-        logger.error(
-            "Vault path is required."
-            " Use --vault option, OBSIDIAN_VAULT environment variable,"
-            " or specify 'vault' in a configuration file."
-        )
-        raise typer.Exit(code=2)
+        vault = configuration.vault
+        # Vault is required for all commands
+        if vault is None:
+            logger.error(
+                "Vault path is required."
+                " Use --vault option, OBSIDIAN_VAULT environment variable,"
+                " or specify 'vault' in a configuration file."
+            )
+            raise typer.Exit(code=2)
+    vault = vault.expanduser().resolve()
 
     if editor is None:
-        editor = configuration.editor.expanduser()
+        editor = configuration.editor
+    if editor is not None:
+        editor = configuration.editor.expanduser().resolve()
 
     # Get blacklist directories from command line, config, or defaults
     # (in order of precedence)

@@ -427,12 +427,12 @@ class Configuration:
     """Record configuration for obsidian-cli application.
 
     Default order of precedence:
+    - user-specified path(s) via --config option
     - ./obsidian-cli.toml (current directory)
     - ~/.config/obsidian-cli/config.toml (user's config directory)
     - Hand-coded defaults
 
-    Note: logging is not configured until after config file is read to support
-    verbose flag in config file.
+    Note: This class assumes logging is not configured.
     """
 
     # TODO: Is typer.echo(f"{typer.get_app_dir('obsidian-cli')}") a better way to

@@ -6,7 +6,6 @@ import uuid
 from pathlib import Path
 
 import click
-import typer
 
 from obsidian_cli.main import _resolve_path
 
