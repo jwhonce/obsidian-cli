@@ -80,7 +80,7 @@ Configuration:
     - {weekday_abbr}: Abbreviated weekday (e.g., Mon)
 
 Author: Jhon Honce / Copilot enablement
-Version: 0.1.14
+Version: 0.1.15
 License: Apache License 2.0
 """
 
@@ -131,7 +131,7 @@ except Exception:  # pylint: disable=broad-except
     try:
         from . import __version__
     except Exception:  # pylint: disable=broad-except
-        __version__ = "0.1.14"  # Fallback version
+        __version__ = "0.1.15"  # Fallback version
 
 
 # Initialize Typer app
@@ -314,9 +314,15 @@ def main(
 
     # Configuration order of precedence:
     #   command line args > environment variables > config file > coded defaults
+
+    if config is not None and not config.exists():
+        logger.error("Configuration file not found: %s", config)
+        raise typer.Exit(code=2)
+
     try:
         configuration = Configuration.from_file(config, verbose=verbose is True)
     except FileNotFoundError:
+        # Otherwise, fall back to defaults when no explicit config was provided
         configuration = Configuration()
         if verbose is True:
             logger.warning("No configuration file found, using coded defaults.")

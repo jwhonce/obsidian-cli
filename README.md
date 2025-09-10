@@ -155,7 +155,7 @@ The `serve` command starts a Model Context Protocol server that exposes vault op
 ### Available MCP Tools
 
 - `create_note` - Create new notes with frontmatter
-- `find_notes` - Search notes by various criteria  
+- `find_notes` - Search notes by various criteria
 - `get_note_content` - Retrieve note content and metadata
 - `get_vault_info` - Get vault statistics and information
 
