@@ -63,25 +63,32 @@ class TestMain(unittest.TestCase):
         self.assertFalse(config.verbose)
 
     def test_configuration_from_file_no_file_returns_default(self):
-        """Test Configuration.from_file() returns default config when no file found."""
+        """Test Configuration.from_path() returns default config when no file found."""
         # Test in completely isolated environment with no config files
         old_cwd = os.getcwd()
         old_xdg_config = os.environ.get("XDG_CONFIG_HOME")
+        old_home = os.environ.get("HOME")
         temp_dir = tempfile.mkdtemp()
 
         try:
             # Change to isolated directory
             os.chdir(temp_dir)
 
-            # Set XDG_CONFIG_HOME to isolated location to prevent loading user configs
+            # Set both XDG_CONFIG_HOME and HOME to isolated locations
+            # to prevent loading any user configs
             isolated_config_dir = Path(temp_dir) / "isolated_config"
+            isolated_home = Path(temp_dir) / "isolated_home"
             isolated_config_dir.mkdir()
+            isolated_home.mkdir()
+
             os.environ["XDG_CONFIG_HOME"] = str(isolated_config_dir)
+            os.environ["HOME"] = str(isolated_home)
 
             # Should return default configuration when no files exist
-            config = Configuration.from_file()
+            source, config = Configuration.from_path()
 
             # Verify default values
+            self.assertIsNone(source)
             self.assertEqual(config.editor, Path("vi"))
             self.assertEqual(config.ident_key, "uid")
             self.assertEqual(config.blacklist, ["Assets/", ".obsidian/", ".git/"])
@@ -95,76 +102,82 @@ class TestMain(unittest.TestCase):
                 os.environ["XDG_CONFIG_HOME"] = old_xdg_config
             elif "XDG_CONFIG_HOME" in os.environ:
                 del os.environ["XDG_CONFIG_HOME"]
-            shutil.rmtree(temp_dir)
-
-    def test_configuration_from_file_with_isolated_environment(self):
-        """Test Configuration.from_file() with completely isolated environment."""
-        # Create completely isolated environment
-        old_cwd = os.getcwd()
-        old_xdg_config = os.environ.get("XDG_CONFIG_HOME")
-        old_home = os.environ.get("HOME")
-        temp_dir = tempfile.mkdtemp()
-
-        try:
-            # Set up isolated environment
-            os.chdir(temp_dir)
-            isolated_config_dir = Path(temp_dir) / "isolated_config"
-            isolated_home = Path(temp_dir) / "isolated_home"
-            isolated_config_dir.mkdir()
-            isolated_home.mkdir()
-
-            # Override environment variables
-            os.environ["XDG_CONFIG_HOME"] = str(isolated_config_dir)
-            os.environ["HOME"] = str(isolated_home)
-
-            # Test 1: No config files - should return defaults
-            config = Configuration.from_file()
-            self.assertEqual(config.editor, Path("vi"))
-            self.assertIsNone(config.vault)
-            self.assertFalse(config.verbose)
-
-            # Test 2: Create config in current directory
-            current_config = Path("obsidian-cli.toml")
-            with open(current_config, "w", encoding="utf-8") as f:
-                f.write("""
-editor = "nano"
-vault = "/test/vault"
-verbose = true
-""")
-
-            config = Configuration.from_file()
-            self.assertEqual(config.editor, Path("nano"))
-            self.assertEqual(config.vault, Path("/test/vault"))
-            self.assertTrue(config.verbose)
-
-            # Test 3: Remove current config, create user config
-            current_config.unlink()
-            user_config_dir = isolated_config_dir / "obsidian-cli"
-            user_config_dir.mkdir()
-            user_config = user_config_dir / "config.toml"
-            with open(user_config, "w", encoding="utf-8") as f:
-                f.write("""
-editor = "vim"
-vault = "/user/vault"
-verbose = false
-""")
-
-            config = Configuration.from_file()
-            self.assertEqual(config.editor, Path("vim"))
-            self.assertEqual(config.vault, Path("/user/vault"))
-            self.assertFalse(config.verbose)
-
-        finally:
-            # Restore original environment
-            os.chdir(old_cwd)
-            if old_xdg_config is not None:
-                os.environ["XDG_CONFIG_HOME"] = old_xdg_config
-            elif "XDG_CONFIG_HOME" in os.environ:
-                del os.environ["XDG_CONFIG_HOME"]
             if old_home is not None:
                 os.environ["HOME"] = old_home
             elif "HOME" in os.environ:
                 del os.environ["HOME"]
+            shutil.rmtree(temp_dir)
+
+    def test_configuration_defaults(self):
+        """Test Configuration initialization with default values."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            old_cwd = os.getcwd()
+            old_xdg_config = os.environ.get("XDG_CONFIG_HOME")
+            old_home = os.environ.get("HOME")
+            try:
+                os.chdir(temp_dir)
+
+                # Create isolated config and home directories
+                isolated_config_dir = Path(temp_dir) / "isolated_config"
+                isolated_home = Path(temp_dir) / "isolated_home"
+                isolated_config_dir.mkdir()
+                isolated_home.mkdir()
+
+                # Override environment variables to prevent loading any existing config files
+                os.environ["XDG_CONFIG_HOME"] = str(isolated_config_dir)
+                os.environ["HOME"] = str(isolated_home)
+
+                # Ensure no config files exist in isolated environment
+                source, config = Configuration.from_path()
+
+                # Verify default values (source should be None since no config file found)
+                self.assertIsNone(source)
+                self.assertEqual(config.editor, Path("vi"))
+                self.assertEqual(config.ident_key, "uid")
+                self.assertEqual(config.blacklist, ["Assets/", ".obsidian/", ".git/"])
+                self.assertIsNone(config.vault)
+                self.assertFalse(config.verbose)
+            finally:
+                # Restore original environment
+                os.chdir(old_cwd)
+                if old_xdg_config is not None:
+                    os.environ["XDG_CONFIG_HOME"] = old_xdg_config
+                elif "XDG_CONFIG_HOME" in os.environ:
+                    del os.environ["XDG_CONFIG_HOME"]
+                if old_home is not None:
+                    os.environ["HOME"] = old_home
+                elif "HOME" in os.environ:
+                    del os.environ["HOME"]
+
+    def test_configuration_from_path_with_isolated_environment(self):
+        """Test Configuration.from_path with isolated environment setup."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            old_cwd = os.getcwd()
+            try:
+                os.chdir(temp_dir)
+
+                # Create test config file
+                config_file = Path("obsidian-cli.toml")
+                config_file.write_text(
+                    """
+vault = "/test/vault"
+editor = "nano"
+verbose = true
+blacklist = ["temp/", "cache/"]
+"""
+                )
+
+                # Test loading configuration
+                source, config = Configuration.from_path()
+
+                self.assertEqual(source, config_file)
+                self.assertEqual(str(config.vault), "/test/vault")
+                self.assertEqual(str(config.editor), "nano")
+                self.assertTrue(config.verbose)
+                self.assertEqual(config.blacklist, ["temp/", "cache/"])
+
+            finally:
+                os.chdir(old_cwd)
 
     def test_state_class_creation(self):
         """Test State class creation and attributes."""
@@ -393,7 +406,7 @@ verbose = false
     def test_vault_required_error(self):
         """Test that commands fail without vault specified."""
         from unittest.mock import patch
-        
+
         # Create completely isolated environment to ensure no config files are loaded
         old_cwd = os.getcwd()
         old_xdg_config = os.environ.get("XDG_CONFIG_HOME")
@@ -415,13 +428,13 @@ verbose = false
                 # Use a completely isolated runner
                 isolated_runner = CliRunner()
 
-                with patch('obsidian_cli.main.logger') as mock_logger:
+                with patch("obsidian_cli.main.logger") as mock_logger:
                     # Test with a command that requires vault but don't provide one
                     result = isolated_runner.invoke(cli, ["info"])
 
                     # Should exit with code 2 when vault is missing
                     self.assertEqual(result.exit_code, 2)
-                    
+
                     # Verify that the vault error was logged
                     mock_logger.error.assert_called_once_with(
                         "Vault path is required."

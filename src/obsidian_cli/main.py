@@ -101,7 +101,7 @@ from datetime import datetime
 from enum import StrEnum
 from pathlib import Path
 from shutil import get_terminal_size
-from typing import Annotated, Any, Optional
+from typing import Annotated, Any, Optional, Tuple, Union
 
 import frontmatter  # type: ignore[import-untyped]
 import typer
@@ -180,35 +180,59 @@ class Configuration:
     verbose: bool = field(default=False)
 
     @classmethod
-    def from_file(cls, path: Optional[Path] = None, verbose: bool = False) -> "Configuration":
+    def from_path(
+        cls, path: Optional[Union[str, Path]] = None, verbose: bool = False
+    ) -> Tuple[Union[Path | None], "Configuration"]:
         """Load configuration from a TOML file."""
 
         # Initialize default configuration
         default = cls()
 
+        file = None
         config_data = {}
         if path:
-            config_data = cls._load_toml_config(path, verbose)
+            if isinstance(path, Path):
+                config_data = cls._load_toml_config(path, verbose)
+                file = path
+            elif isinstance(path, str):
+                for entry in path.split(":"):
+                    try:
+                        p = Path(entry)
+                        config_data = cls._load_toml_config(p, verbose)
+                        file = p
+                        break
+                    except FileNotFoundError:
+                        continue
+            if not config_data.keys():
+                raise FileNotFoundError(
+                    errno.ENOENT, "Provided configuration file(s) not found", str(path)
+                )
         else:
             # Search default locations
-            for config_path in default.config_dirs:
-                if config_path.exists():
-                    config_data = cls._load_toml_config(config_path, verbose)
+            for entry in default.config_dirs:
+                try:
+                    config_data = cls._load_toml_config(entry, verbose)
+                    file = entry
                     break
+                except FileNotFoundError:
+                    continue
 
-        return cls(
-            editor=Path(config_data.get("editor", default.editor)),
-            ident_key=config_data.get("ident_key", default.ident_key),
-            blacklist=config_data.get(
-                "blacklist", config_data.get("ignored_directories", default.blacklist)
+        return (
+            file,
+            cls(
+                blacklist=config_data.get(
+                    "blacklist", config_data.get("ignored_directories", default.blacklist)
+                ),
+                editor=Path(config_data.get("editor", default.editor)),
+                ident_key=config_data.get("ident_key", default.ident_key),
+                journal_template=config_data.get("journal_template", default.journal_template),
+                vault=Path(config_data["vault"]) if config_data.get("vault") else default.vault,
+                verbose=config_data.get("verbose", default.verbose),
             ),
-            journal_template=config_data.get("journal_template", default.journal_template),
-            vault=Path(config_data["vault"]) if config_data.get("vault") else default.vault,
-            verbose=config_data.get("verbose", default.verbose),
         )
 
     @staticmethod
-    def _load_toml_config(path: Path, verbose: bool = False) -> dict[str, Any]:
+    def _load_toml_config(path: Path, verbose: bool = False) -> Union[dict[str, Any] | None]:
         """Load TOML configuration from the specified path or default locations.
 
         Args:
@@ -227,15 +251,13 @@ class Configuration:
         if verbose:
             typer.echo(f"Parsing configuration from: {path}")
 
-        config_data = None
         try:
             with open(path, "rb") as f:
-                config_data = tomllib.load(f)
+                return tomllib.load(f)
         except tomllib.TOMLDecodeError as e:
-            logger.error("Error parsing %s: %s", path, e)
+            typer.secho(f"Error parsing {path}: {e}", err=True, fg=typer.colors.RED)
             raise
-
-        return config_data
+        return None
 
 
 @dataclass(frozen=True)
@@ -313,22 +335,15 @@ def main(
     _ = version  # noqa: F841
 
     # Configuration order of precedence:
-    #   command line args > environment variables > config file > coded defaults
-
-    if config is not None and not config.exists():
-        logger.error("Configuration file not found: %s", config)
-        raise typer.Exit(code=2)
-
+    #   command line args > environment variables > config file > coded default
     try:
-        configuration = Configuration.from_file(config, verbose=verbose is True)
-    except FileNotFoundError:
-        # Otherwise, fall back to defaults when no explicit config was provided
-        configuration = Configuration()
-        if verbose is True:
-            logger.warning("No configuration file found, using coded defaults.")
+        (source, configuration) = Configuration.from_path(config, verbose=verbose is True)
     except Exception as e:
-        logger.error("Error loading configuration: %s", e)
+        typer.secho(f"Error loading configuration: {e}", err=True, fg=typer.colors.RED)
         raise typer.Exit(code=2) from e
+
+    if verbose and not source:
+        typer.echo("Hard-coded defaults will be used as no config file was found.")
 
     # Get verbose setting from command line, config file, or default to False
     if verbose is None:

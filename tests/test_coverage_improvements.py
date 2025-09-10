@@ -32,35 +32,24 @@ class TestCoverageImprovements(unittest.TestCase):
             return result.output
 
     def test_configuration_file_not_found_verbose(self):
-        """Test that warning is logged in verbose mode when no config found."""
-        from unittest.mock import patch
-
+        """Test that message is displayed in verbose mode when no config found."""
         with tempfile.TemporaryDirectory() as temp_dir:
             old_cwd = os.getcwd()
             try:
                 os.chdir(temp_dir)
                 # Ensure no default config files exist
 
-                with patch("obsidian_cli.main.logger") as mock_logger:
-                    # Mock Configuration.from_file to raise FileNotFoundError to trigger
-                    # the warning path
-                    with patch("obsidian_cli.main.Configuration.from_file") as mock_from_file:
-                        mock_from_file.side_effect = FileNotFoundError("No config found")
+                # Mock Configuration.from_path to return (None, default_config)
+                # simulating no config file found
+                with patch("obsidian_cli.main.Configuration.from_path") as mock_from_path:
+                    mock_config = Configuration()
+                    mock_from_path.return_value = (None, mock_config)
 
-                        result = self.runner.invoke(cli, ["--verbose", "info"])
-                        self.assertEqual(result.exit_code, 2)
+                    result = self.runner.invoke(cli, ["--verbose", "info"])
+                    self.assertEqual(result.exit_code, 2)
 
-                        # The warning should be logged when FileNotFoundError is caught
-                        # in verbose mode
-                        mock_logger.warning.assert_called_with(
-                            "No configuration file found, using coded defaults."
-                        )
-                        # Verify the vault required error was also logged
-                        mock_logger.error.assert_called_with(
-                            "Vault path is required."
-                            " Use --vault option, OBSIDIAN_VAULT environment variable,"
-                            " or specify 'vault' in a configuration file."
-                        )
+                    # Should show message about using hard-coded defaults
+                    self.assertIn("Hard-coded defaults will be used", result.output)
             finally:
                 os.chdir(old_cwd)
 
@@ -81,9 +70,7 @@ class TestCoverageImprovements(unittest.TestCase):
                 os.chdir(old_cwd)
 
     def test_configuration_corrupt_toml_logging(self):
-        """Test that corrupt TOML configuration files are properly logged."""
-        from unittest.mock import patch
-
+        """Test that corrupt TOML configuration files are properly handled."""
         with tempfile.TemporaryDirectory() as temp_dir:
             config_file = Path(temp_dir) / "corrupt-config.toml"
             # Create a corrupt TOML file with various syntax errors
@@ -95,17 +82,14 @@ missing_closing_bracket = true
 invalid_syntax ===== "broken"
 """)
 
-            with patch("obsidian_cli.main.logger") as mock_logger:
-                # Expect a TOMLDecodeError for invalid config contents
-                with self.assertRaises(tomllib.TOMLDecodeError):
-                    Configuration.from_file(config_file)
+            # Expect a TOMLDecodeError for invalid config contents when calling _load_toml_config
+            with self.assertRaises(tomllib.TOMLDecodeError):
+                Configuration._load_toml_config(config_file, verbose=True)
 
-                # Verify that the error was logged
-                mock_logger.error.assert_called_once()
-                call_args = mock_logger.error.call_args[0]
-                self.assertEqual(call_args[0], "Error parsing %s: %s")
-                self.assertEqual(call_args[1], config_file)
-                # Third argument should be the exception
+            # Test the error handling via the CLI
+            result = self.runner.invoke(cli, ["--config", str(config_file), "info"])
+            self.assertEqual(result.exit_code, 2)
+            self.assertIn("Error loading configuration:", result.output)
 
     def test_version_callback(self):
         """Test version callback functionality."""
@@ -128,9 +112,10 @@ invalid_syntax ===== "broken"
                         del os.environ["OBSIDIAN_VAULT"]
 
                     with patch("obsidian_cli.main.logger") as mock_logger:
-                        # Simulate no config file found (using defaults)
-                        with patch("obsidian_cli.main.Configuration.from_file") as mock_from_file:
-                            mock_from_file.side_effect = FileNotFoundError("No config found")
+                        # Mock Configuration.from_path to return config without vault
+                        with patch("obsidian_cli.main.Configuration.from_path") as mock_from_path:
+                            mock_config = Configuration(vault=None)
+                            mock_from_path.return_value = (None, mock_config)
 
                             result = self.runner.invoke(cli, ["info"])
 
@@ -147,7 +132,7 @@ invalid_syntax ===== "broken"
                 os.chdir(old_cwd)
 
     def test_configuration_loading_error_logging(self):
-        """Test that configuration loading errors are properly logged."""
+        """Test that configuration loading errors are properly displayed."""
         from unittest.mock import patch
 
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -155,60 +140,48 @@ invalid_syntax ===== "broken"
             try:
                 os.chdir(temp_dir)
 
-                # Mock Configuration.from_file to raise an exception
+                # Mock Configuration.from_path to raise an exception
                 mock_exception = Exception("Test configuration error")
 
-                with patch("obsidian_cli.main.Configuration.from_file") as mock_from_file:
-                    with patch("obsidian_cli.main.logger") as mock_logger:
-                        mock_from_file.side_effect = mock_exception
+                with patch("obsidian_cli.main.Configuration.from_path") as mock_from_path:
+                    mock_from_path.side_effect = mock_exception
 
-                        result = self.runner.invoke(cli, ["info"])
+                    result = self.runner.invoke(cli, ["info"])
 
-                        # Should exit with code 2
-                        self.assertEqual(result.exit_code, 2)
+                    # Should exit with code 2
+                    self.assertEqual(result.exit_code, 2)
 
-                        # Verify that the error was logged
-                        mock_logger.error.assert_called_once_with(
-                            "Error loading configuration: %s", mock_exception
-                        )
+                    # Verify that the error was displayed via typer.secho
+                    self.assertIn("Error loading configuration:", result.output)
+                    self.assertIn("Test configuration error", result.output)
             finally:
                 os.chdir(old_cwd)
 
     def test_configuration_file_not_found_logging(self):
-        """Test that missing configuration file is properly logged in verbose mode."""
-        from unittest.mock import patch
+        """Test that missing configuration file error is properly handled."""
+        # Create a non-existent config file path
+        nonexistent_config = Path("/tmp/nonexistent-config.toml")
 
-        with tempfile.TemporaryDirectory() as temp_dir:
-            old_cwd = os.getcwd()
-            try:
-                os.chdir(temp_dir)
+        # Test with vault specified and non-existent config file
+        result = self.runner.invoke(
+            cli,
+            [
+                "--vault",
+                "/tmp",
+                "--config",
+                str(nonexistent_config),
+                "info",
+            ],
+        )
 
-                # Create a non-existent config file path
-                nonexistent_config = Path(temp_dir) / "nonexistent-config.toml"
+        # Should exit with code 2 due to configuration loading error
+        self.assertEqual(result.exit_code, 2)
 
-                with patch("obsidian_cli.main.logger") as mock_logger:
-                    # Test with verbose flag, vault specified, and non-existent config file
-                    result = self.runner.invoke(
-                        cli,
-                        [
-                            "--verbose",
-                            "--vault",
-                            temp_dir,
-                            "--config",
-                            str(nonexistent_config),
-                            "info",
-                        ],
-                    )
-
-                    # Current behavior: missing explicit --config is fatal with exit code 2
-                    self.assertEqual(result.exit_code, 2)
-
-                    # Verify that an error was logged with the missing path
-                    mock_logger.error.assert_called_once_with(
-                        "Configuration file not found: %s", nonexistent_config
-                    )
-            finally:
-                os.chdir(old_cwd)
+        # Verify that error was displayed via typer.secho in red text
+        # The actual error message will be from the FileNotFoundError exception
+        self.assertIn("Error loading configuration:", result.output)
+        # The exception message should contain file not found information
+        self.assertIn("Configuration file", result.output)
 
     def test_journal_template_validation_logging(self):
         """Test that invalid journal template validation is properly logged."""
@@ -241,8 +214,6 @@ journal_template = "Journal/{{invalid_var}}/{{year}}"
 
     def test_configuration_field_independence(self):
         """Test that Configuration instances have independent mutable fields."""
-        from obsidian_cli.main import Configuration
-
         # Create two instances
         config1 = Configuration()
         config2 = Configuration()

@@ -1,126 +1,99 @@
+"""
+Test Configuration loading in isolated environment.
+"""
+
 import os
 import shutil
 import tempfile
 import unittest
 from pathlib import Path
-from tempfile import TemporaryDirectory
 
-from typer.testing import CliRunner
-
-from obsidian_cli.main import cli
+from obsidian_cli.main import Configuration
 
 
 class TestIsolated(unittest.TestCase):
-    """Test cases that require isolated environment setup."""
-
-    @classmethod
-    def setUpClass(cls):
-        """Move home config file to avoid test interference."""
-        cls.home_config = Path.home() / ".config" / "obsidian-cli" / "config.toml"
-        cls.home_backup = None
-        if cls.home_config.exists():
-            cls.home_backup = cls.home_config.with_suffix(".toml.backup")
-            shutil.move(str(cls.home_config), str(cls.home_backup))
-
-    @classmethod
-    def tearDownClass(cls):
-        """Restore home config file."""
-        if cls.home_backup and cls.home_backup.exists():
-            shutil.move(str(cls.home_backup), str(cls.home_config))
+    """Test Configuration in isolated environment."""
 
     def setUp(self):
-        """Set up test fixtures."""
-        self.temp_dir = TemporaryDirectory()
-        self.vault_path = Path(self.temp_dir.name) / "test_vault"
-        self.vault_path.mkdir()
-        self.runner = CliRunner()
+        """Set up isolated test environment."""
+        self.temp_dir = tempfile.mkdtemp()
+        self.xdg_config_dir = Path(self.temp_dir) / "xdg_config"
+        self.home_dir = Path(self.temp_dir) / "home"
+
+        # Create directories
+        self.xdg_config_dir.mkdir(parents=True)
+        self.home_dir.mkdir(parents=True)
+
+        # Store original environment
+        self.old_cwd = os.getcwd()
+        self.old_xdg_config = os.environ.get("XDG_CONFIG_HOME")
+        self.old_home = os.environ.get("HOME")
+
+        # Set isolated environment
+        os.chdir(self.temp_dir)
+        os.environ["XDG_CONFIG_HOME"] = str(self.xdg_config_dir)
+        os.environ["HOME"] = str(self.home_dir)
 
     def tearDown(self):
-        """Clean up test fixtures."""
-        self.temp_dir.cleanup()
+        """Clean up test environment."""
+        # Restore original environment
+        os.chdir(self.old_cwd)
+        if self.old_xdg_config is not None:
+            os.environ["XDG_CONFIG_HOME"] = self.old_xdg_config
+        elif "XDG_CONFIG_HOME" in os.environ:
+            del os.environ["XDG_CONFIG_HOME"]
+        if self.old_home is not None:
+            os.environ["HOME"] = self.old_home
+        elif "HOME" in os.environ:
+            del os.environ["HOME"]
 
-    def test_error_handling_missing_vault(self):
-        """Test error handling when vault is missing."""
-        from unittest.mock import patch
-        
-        with patch('obsidian_cli.main.logger') as mock_logger:
-            result = self.runner.invoke(cli, ["info"])
+        # Clean up temporary directory
+        shutil.rmtree(self.temp_dir, ignore_errors=True)
 
-            # The CLI should exit with code 2 when vault is missing
-            self.assertEqual(result.exit_code, 2)
-            
-            # Verify that the vault error was logged
-            mock_logger.error.assert_called_once_with(
-                "Vault path is required."
-                " Use --vault option, OBSIDIAN_VAULT environment variable,"
-                " or specify 'vault' in a configuration file."
-            )
-
-    def test_journal_command_invalid_template(self):
-        """Test journal command with invalid template variable."""
-        from unittest.mock import patch
-        
-        # Create a config file with invalid template
-        config_file = self.vault_path / "bad-journal-config.toml"
-        config_content = f'''
-vault = "{self.vault_path}"
-journal_template = "Journal/{{invalid_var}}/{{year}}"
-'''
-        with open(config_file, "w", encoding="utf-8") as f:
-            f.write(config_content)
-
-        with patch('obsidian_cli.main.logger') as mock_logger:
-            result = self.runner.invoke(cli, ["--config", str(config_file), "journal"])
-            self.assertEqual(result.exit_code, 1)  # Template validation error -> exit code 1
-            
-            # Verify that the invalid template error was logged
-            mock_logger.error.assert_called_once_with(
-                "Invalid journal_template: %s", "Journal/{invalid_var}/{year}"
-            )
-
-    def test_toml_config_default_paths(self):
-        """Test automatic config loading from default paths."""
-        # Test loading from current directory in isolated environment
-        old_cwd = os.getcwd()
-        old_xdg_config = os.environ.get("XDG_CONFIG_HOME")
-        temp_dir = tempfile.mkdtemp()
-
-        try:
-            os.chdir(temp_dir)
-
-            # Set isolated config environment
-            isolated_config_dir = Path(temp_dir) / "isolated_config"
-            isolated_config_dir.mkdir()
-            os.environ["XDG_CONFIG_HOME"] = str(isolated_config_dir)
-
-            # No config files should exist, should return default configuration
-            from obsidian_cli.main import Configuration
-
-            # When no config files exist, from_file() returns default config
-            config = Configuration.from_file()
-            self.assertIsNone(config.vault)  # Default vault is None
-            self.assertFalse(config.verbose)  # Default verbose is False
-
-            # Create a config file in current directory
-            current_config = Path("./obsidian-cli.toml")
-            with open(current_config, "w", encoding="utf-8") as f:
-                f.write("""
-vault = "/current/dir/vault"
-verbose = true
+    def test_toml_config_xdg_path(self):
+        """Test TOML configuration loading from XDG config path."""
+        # Test XDG config path
+        xdg_config_file = self.xdg_config_dir / "obsidian-cli" / "config.toml"
+        xdg_config_file.parent.mkdir(parents=True)
+        xdg_config_file.write_text("""
+vault = "/xdg/vault"
+editor = "nano"
 """)
 
-            # Now it should load the config file
-            config = Configuration.from_file()
-            self.assertEqual(str(config.vault), "/current/dir/vault")
-            self.assertTrue(config.verbose)
+        source, config = Configuration.from_path()
+        self.assertEqual(source, xdg_config_file)
+        self.assertEqual(str(config.vault), "/xdg/vault")
+        self.assertEqual(str(config.editor), "nano")
 
-        finally:
-            os.chdir(old_cwd)
-            if old_xdg_config is not None:
-                os.environ["XDG_CONFIG_HOME"] = old_xdg_config
-            elif "XDG_CONFIG_HOME" in os.environ:
-                del os.environ["XDG_CONFIG_HOME"]
-            shutil.rmtree(temp_dir)
+    def test_toml_config_home_path(self):
+        """Test TOML configuration loading from ~/.config path."""
+        # Clear XDG_CONFIG_HOME to test ~/.config fallback
+        del os.environ["XDG_CONFIG_HOME"]
+
+        home_config_file = self.home_dir / ".config" / "obsidian-cli" / "config.toml"
+        home_config_file.parent.mkdir(parents=True)
+        home_config_file.write_text("""
+vault = "/home/vault"
+editor = "vim"
+""")
+
+        source, config = Configuration.from_path()
+        self.assertEqual(source, home_config_file)
+        self.assertEqual(str(config.vault), "/home/vault")
+        self.assertEqual(str(config.editor), "vim")
+
+        # Restore XDG_CONFIG_HOME for cleanup
+        os.environ["XDG_CONFIG_HOME"] = str(self.xdg_config_dir)
+
+    def test_no_config_file_defaults(self):
+        """Test default configuration when no config file exists."""
+        source, config = Configuration.from_path()
+        self.assertIsNone(source)
+        self.assertEqual(config.editor, Path("vi"))
+        self.assertEqual(config.ident_key, "uid")
+        self.assertEqual(config.blacklist, ["Assets/", ".obsidian/", ".git/"])
+        self.assertIsNone(config.vault)
+        self.assertFalse(config.verbose)
 
 
 if __name__ == "__main__":
