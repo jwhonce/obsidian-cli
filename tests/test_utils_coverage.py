@@ -40,49 +40,30 @@ class TestUtilsCoverage(unittest.TestCase):
             _display_find_results([], "test", False, self.vault_path)
             mock_secho.assert_called_once_with("No files found matching 'test'", err=True, fg="red")
 
-    def test_display_find_results_with_verbose_title(self):
-        """Test display_find_results with verbose mode and title metadata."""
-        # Create test file with frontmatter
-        test_file = self.vault_path / "test.md"
-        test_file.write_text("""---
-title: Test Title
----
-Content here""")
+    def test_display_find_results_verbose_mode(self):
+        """Test display_find_results verbose mode with various scenarios."""
+        # Test with title metadata
+        test_file_with_title = self.vault_path / "with_title.md"
+        test_file_with_title.write_text("---\ntitle: Test Title\n---\nContent")
 
-        matches = [Path("test.md")]
+        # Test without title metadata
+        test_file_no_title = self.vault_path / "no_title.md"
+        test_file_no_title.write_text("---\nauthor: Someone\n---\nContent")
+
+        matches = [Path("with_title.md"), Path("no_title.md")]
 
         with patch("typer.echo") as mock_echo:
             _display_find_results(matches, "test", True, self.vault_path)
 
-            # Should print filename and title
-            mock_echo.assert_any_call(Path("test.md"))
+            # Should print both filenames
+            mock_echo.assert_any_call(Path("with_title.md"))
+            mock_echo.assert_any_call(Path("no_title.md"))
+            # Should print title for file that has it
             mock_echo.assert_any_call("  title: Test Title")
 
-    def test_display_find_results_with_verbose_no_title(self):
-        """Test display_find_results with verbose mode but no title metadata."""
-        # Create test file without title
-        test_file = self.vault_path / "test.md"
-        test_file.write_text("""---
-author: Someone
----
-Content here""")
-
-        matches = [Path("test.md")]
-
+        # Test exception handling with nonexistent file
         with patch("typer.echo") as mock_echo:
-            _display_find_results(matches, "test", True, self.vault_path)
-
-            # Should print filename but not title
-            mock_echo.assert_called_with(Path("test.md"))
-
-    def test_display_find_results_with_verbose_exception(self):
-        """Test display_find_results with verbose mode when exception occurs."""
-        # Create test file that will cause exception when reading
-        matches = [Path("nonexistent.md")]
-
-        with patch("typer.echo") as mock_echo:
-            _display_find_results(matches, "test", True, self.vault_path)
-
+            _display_find_results([Path("nonexistent.md")], "test", True, self.vault_path)
             # Should still print filename despite exception
             mock_echo.assert_called_with(Path("nonexistent.md"))
 
@@ -171,7 +152,6 @@ Content here""")
 
     def test_update_metadata_key_new_key(self):
         """Test _update_metadata_key adding new key."""
-        import frontmatter
 
         # Create test file
         test_file = self.vault_path / "test.md"
@@ -197,7 +177,6 @@ Content""")
 
     def test_update_metadata_key_existing_key(self):
         """Test _update_metadata_key updating existing key."""
-        import frontmatter
 
         # Create test file
         test_file = self.vault_path / "test.md"

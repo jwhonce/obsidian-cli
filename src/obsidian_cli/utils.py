@@ -499,9 +499,9 @@ class Configuration:
 
     @classmethod
     def from_path(
-        cls, path: Optional[Union[str, Path]] = None, verbose: bool = False
+        cls, path: Optional[str] = None, verbose: bool = False
     ) -> Tuple[Union[Path | None], "Configuration"]:
-        """Load configuration from a TOML file."""
+        """Load configuration from a TOML file or colon-separated list of files."""
 
         # Initialize default configuration
         default = cls()
@@ -509,18 +509,15 @@ class Configuration:
         file = None
         config_data = {}
         if path:
-            if isinstance(path, Path):
-                config_data = cls._load_toml_config(path, verbose)
-                file = path
-            elif isinstance(path, str):
-                for entry in path.split(":"):
-                    try:
-                        p = Path(entry)
-                        config_data = cls._load_toml_config(p, verbose)
-                        file = p
-                        break
-                    except ObsidianFileError:
-                        continue
+            # Handle colon-separated paths (OBSIDIAN_CONFIG_DIRS)
+            for entry in path.split(":"):
+                try:
+                    p = Path(entry.strip())  # Strip whitespace from each entry
+                    config_data = cls._load_toml_config(p, verbose)
+                    file = p
+                    break
+                except ObsidianFileError:
+                    continue
             if not config_data.keys():
                 raise ObsidianFileError(path, "Provided configuration file(s) not found")
         else:

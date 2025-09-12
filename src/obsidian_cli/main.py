@@ -66,6 +66,7 @@ Configuration:
     Environment Variables:
     - EDITOR: Editor to use for editing files
     - OBSIDIAN_BLACKLIST: Colon-separated list of directory patterns to ignore
+    - OBSIDIAN_CONFIG_DIRS: Colon-separated list of configuration files to read from
     - OBSIDIAN_VAULT: Path to the Obsidian vault
 
     Journal Template Variables:
@@ -89,7 +90,6 @@ import errno
 import importlib.metadata
 import logging
 import signal
-import subprocess
 import sys
 import tomllib
 import traceback
@@ -175,8 +175,9 @@ def main(
         ),
     ] = None,
     config: Annotated[
-        Optional[Path],
+        Optional[str],
         typer.Option(
+            envvar="OBSIDIAN_CONFIG_DIRS",
             help=(
                 "Colon-separated list of files to read configuration from."
                 " Precedence is given to the first file found."
@@ -380,8 +381,10 @@ def edit(ctx: typer.Context, page_or_path: PAGE_FILE) -> None:
     filename = _resolve_path(page_or_path, state.vault)
 
     try:
-        # Open the file in the configured editor
-        subprocess.call([state.editor, filename])
+        # Open the file in the configured editor using subprocess
+        import subprocess
+
+        subprocess.run([str(state.editor), str(filename)], check=True)
     except FileNotFoundError as e:
         logger.error(
             "Error: '%s' command not found. Please ensure %s is installed and in your PATH.",
@@ -389,6 +392,11 @@ def edit(ctx: typer.Context, page_or_path: PAGE_FILE) -> None:
             state.editor,
         )
         raise typer.Exit(code=2) from e
+    except subprocess.CalledProcessError as e:
+        logger.error(
+            "Editor '%s' exited with code %d while editing %s", state.editor, e.returncode, filename
+        )
+        raise typer.Exit(code=1) from e
     except Exception as e:
         logger.error("An error occurred using %s while editing %s", state.editor, filename)
         raise typer.Exit(code=1) from e
@@ -477,9 +485,10 @@ def journal(
     else:
         try:
             dt = datetime.strptime(date, "%Y-%m-%d")
-        except ValueError as e:
-            logger.error("Invalid --date format. Use YYYY-MM-DD.")
-            raise typer.Exit(code=1) from e
+        except ValueError:
+            raise typer.BadParameter(
+                "Invalid --date format. Use ISO format YYYY-MM-DD.", ctx=ctx, param_hint="--date"
+            ) from None
 
     # Build template variables from target date
     template_vars = _get_journal_template_vars(dt)
@@ -560,7 +569,6 @@ def meta(
             _display_metadata_key(post, key)
         else:
             _update_metadata_key(post, filename, key, value, state.verbose)
-
     except KeyError as e:
         logger.error("Property '%s' not found in frontmatter of '%s'", key, page_or_path)
         raise typer.Exit(code=1) from e

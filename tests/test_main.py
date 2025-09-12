@@ -1,6 +1,5 @@
 import json
 import os
-import shutil
 import tempfile
 import unittest
 from pathlib import Path
@@ -49,10 +48,43 @@ class TestMain(unittest.TestCase):
         full_args = ["--vault", str(self.vault_path)] + args
         return self.runner.invoke(cli, full_args, input=input_data)
 
-    def test_configuration_class_defaults(self):
-        """Test Configuration class default values."""
+    def test_configuration_defaults(self):
+        """Test Configuration class and from_path() default values."""
+        # Test direct instantiation defaults
         config = Configuration()
+        self._assert_default_config_values(config)
 
+        # Test from_path() defaults in isolated environment
+        with tempfile.TemporaryDirectory() as temp_dir:
+            old_cwd = os.getcwd()
+            old_xdg_config = os.environ.get("XDG_CONFIG_HOME")
+            old_home = os.environ.get("HOME")
+
+            try:
+                os.chdir(temp_dir)
+                os.environ["XDG_CONFIG_HOME"] = str(Path(temp_dir) / "config")
+                os.environ["HOME"] = str(Path(temp_dir) / "home")
+                Path(temp_dir, "config").mkdir()
+                Path(temp_dir, "home").mkdir()
+
+                source, config = Configuration.from_path()
+
+                self.assertIsNone(source)  # No config file should be found
+                self._assert_default_config_values(config)
+
+            finally:
+                os.chdir(old_cwd)
+                if old_xdg_config:
+                    os.environ["XDG_CONFIG_HOME"] = old_xdg_config
+                elif "XDG_CONFIG_HOME" in os.environ:
+                    del os.environ["XDG_CONFIG_HOME"]
+                if old_home:
+                    os.environ["HOME"] = old_home
+                elif "HOME" in os.environ:
+                    del os.environ["HOME"]
+
+    def _assert_default_config_values(self, config):
+        """Helper to verify default configuration values."""
         self.assertEqual(config.editor, Path("vi"))
         self.assertEqual(config.ident_key, "uid")
         self.assertEqual(config.blacklist, ["Assets/", ".obsidian/", ".git/"])
@@ -61,93 +93,6 @@ class TestMain(unittest.TestCase):
         )
         self.assertIsNone(config.vault)
         self.assertFalse(config.verbose)
-
-    def test_configuration_from_file_no_file_returns_default(self):
-        """Test Configuration.from_path() returns default config when no file found."""
-        # Test in completely isolated environment with no config files
-        old_cwd = os.getcwd()
-        old_xdg_config = os.environ.get("XDG_CONFIG_HOME")
-        old_home = os.environ.get("HOME")
-        temp_dir = tempfile.mkdtemp()
-
-        try:
-            # Change to isolated directory
-            os.chdir(temp_dir)
-
-            # Set both XDG_CONFIG_HOME and HOME to isolated locations
-            # to prevent loading any user configs
-            isolated_config_dir = Path(temp_dir) / "isolated_config"
-            isolated_home = Path(temp_dir) / "isolated_home"
-            isolated_config_dir.mkdir()
-            isolated_home.mkdir()
-
-            os.environ["XDG_CONFIG_HOME"] = str(isolated_config_dir)
-            os.environ["HOME"] = str(isolated_home)
-
-            # Should return default configuration when no files exist
-            source, config = Configuration.from_path()
-
-            # Verify default values
-            self.assertIsNone(source)
-            self.assertEqual(config.editor, Path("vi"))
-            self.assertEqual(config.ident_key, "uid")
-            self.assertEqual(config.blacklist, ["Assets/", ".obsidian/", ".git/"])
-            self.assertIsNone(config.vault)
-            self.assertFalse(config.verbose)
-
-        finally:
-            # Restore original environment
-            os.chdir(old_cwd)
-            if old_xdg_config is not None:
-                os.environ["XDG_CONFIG_HOME"] = old_xdg_config
-            elif "XDG_CONFIG_HOME" in os.environ:
-                del os.environ["XDG_CONFIG_HOME"]
-            if old_home is not None:
-                os.environ["HOME"] = old_home
-            elif "HOME" in os.environ:
-                del os.environ["HOME"]
-            shutil.rmtree(temp_dir)
-
-    def test_configuration_defaults(self):
-        """Test Configuration initialization with default values."""
-        with tempfile.TemporaryDirectory() as temp_dir:
-            old_cwd = os.getcwd()
-            old_xdg_config = os.environ.get("XDG_CONFIG_HOME")
-            old_home = os.environ.get("HOME")
-            try:
-                os.chdir(temp_dir)
-
-                # Create isolated config and home directories
-                isolated_config_dir = Path(temp_dir) / "isolated_config"
-                isolated_home = Path(temp_dir) / "isolated_home"
-                isolated_config_dir.mkdir()
-                isolated_home.mkdir()
-
-                # Override environment variables to prevent loading any existing config files
-                os.environ["XDG_CONFIG_HOME"] = str(isolated_config_dir)
-                os.environ["HOME"] = str(isolated_home)
-
-                # Ensure no config files exist in isolated environment
-                source, config = Configuration.from_path()
-
-                # Verify default values (source should be None since no config file found)
-                self.assertIsNone(source)
-                self.assertEqual(config.editor, Path("vi"))
-                self.assertEqual(config.ident_key, "uid")
-                self.assertEqual(config.blacklist, ["Assets/", ".obsidian/", ".git/"])
-                self.assertIsNone(config.vault)
-                self.assertFalse(config.verbose)
-            finally:
-                # Restore original environment
-                os.chdir(old_cwd)
-                if old_xdg_config is not None:
-                    os.environ["XDG_CONFIG_HOME"] = old_xdg_config
-                elif "XDG_CONFIG_HOME" in os.environ:
-                    del os.environ["XDG_CONFIG_HOME"]
-                if old_home is not None:
-                    os.environ["HOME"] = old_home
-                elif "HOME" in os.environ:
-                    del os.environ["HOME"]
 
     def test_configuration_from_path_with_isolated_environment(self):
         """Test Configuration.from_path with isolated environment setup."""
@@ -221,11 +166,11 @@ blacklist = ["temp/", "cache/"]
         self.assertEqual(result.exit_code, 0)
         self.assertIn(test_content, result.stdout)
 
-    @patch("subprocess.call")
+    @patch("subprocess.run")
     def test_edit_command(self, mock_subprocess):
         """Test edit command functionality."""
         self.create_test_file("test_note", "Test content")
-        mock_subprocess.return_value = 0
+        mock_subprocess.return_value = None
 
         result = self.run_cli_command(["edit", "test_note"])
 

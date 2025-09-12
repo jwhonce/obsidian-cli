@@ -280,6 +280,109 @@ journal_template = "Journal/{{invalid_var}}/{{year}}"
         self.assertNotEqual(config1.blacklist, config2.blacklist)
         self.assertNotIn("test/", config2.blacklist)
 
+    def test_obsidian_config_dirs_single_file(self):
+        """Test OBSIDIAN_CONFIG_DIRS with single file."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config_file = Path(temp_dir) / "config.toml"
+            config_file.write_text(f"""
+vault = "{temp_dir}/test_vault"
+editor = "test_editor"
+verbose = true
+""")
+
+            (Path(temp_dir) / "test_vault").mkdir()
+
+            with patch.dict("os.environ", {"OBSIDIAN_CONFIG_DIRS": str(config_file)}):
+                result = self.runner.invoke(cli, ["info"])
+
+                self.assertEqual(result.exit_code, 0)
+                self.assertIn("test_editor", result.output)
+                self.assertIn("Verbose: True", result.output)
+
+    def test_obsidian_config_dirs_precedence(self):
+        """Test OBSIDIAN_CONFIG_DIRS precedence with multiple files."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # Create both config files
+            config1 = Path(temp_dir) / "first.toml"
+            config1.write_text(
+                f'vault = "{temp_dir}/test_vault"\neditor = "first_editor"\nverbose = true'
+            )
+
+            config2 = Path(temp_dir) / "second.toml"
+            config2.write_text(
+                f'vault = "{temp_dir}/test_vault"\neditor = "second_editor"\nverbose = false'
+            )
+
+            (Path(temp_dir) / "test_vault").mkdir()
+
+            # First file should take precedence
+            with patch.dict("os.environ", {"OBSIDIAN_CONFIG_DIRS": f"{config1}:{config2}"}):
+                result = self.runner.invoke(cli, ["info"])
+
+                self.assertEqual(result.exit_code, 0)
+                self.assertIn("first_editor", result.output)
+                self.assertNotIn("second_editor", result.output)
+
+    def test_obsidian_config_dirs_fallback(self):
+        """Test OBSIDIAN_CONFIG_DIRS fallback when first file missing."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config2 = Path(temp_dir) / "second.toml"
+            config2.write_text(f'vault = "{temp_dir}/test_vault"\neditor = "second_editor"')
+
+            (Path(temp_dir) / "test_vault").mkdir()
+
+            nonexistent = Path(temp_dir) / "missing.toml"
+
+            # Should use second file when first doesn't exist
+            with patch.dict("os.environ", {"OBSIDIAN_CONFIG_DIRS": f"{nonexistent}:{config2}"}):
+                result = self.runner.invoke(cli, ["info"])
+
+                self.assertEqual(result.exit_code, 0)
+                self.assertIn("second_editor", result.output)
+
+    def test_obsidian_config_dirs_error_handling(self):
+        """Test OBSIDIAN_CONFIG_DIRS error handling when no files exist."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            (Path(temp_dir) / "test_vault").mkdir()
+
+            # Single nonexistent file
+            with patch.dict(
+                "os.environ", {"OBSIDIAN_CONFIG_DIRS": str(Path(temp_dir) / "missing.toml")}
+            ):
+                result = self.runner.invoke(
+                    cli, ["--vault", str(Path(temp_dir) / "test_vault"), "info"]
+                )
+                self.assertNotEqual(result.exit_code, 0)
+                self.assertIn("Provided configuration file(s) not found", result.output)
+
+            # Multiple nonexistent files
+            missing_paths = f"{Path(temp_dir)}/missing1.toml:{Path(temp_dir)}/missing2.toml"
+            with patch.dict("os.environ", {"OBSIDIAN_CONFIG_DIRS": missing_paths}):
+                result = self.runner.invoke(
+                    cli, ["--vault", str(Path(temp_dir) / "test_vault"), "info"]
+                )
+                self.assertNotEqual(result.exit_code, 0)
+                self.assertIn("Provided configuration file(s) not found", result.output)
+
+    def test_obsidian_config_dirs_cli_override(self):
+        """Test that --config CLI option overrides OBSIDIAN_CONFIG_DIRS."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            env_config = Path(temp_dir) / "env.toml"
+            env_config.write_text(f'vault = "{temp_dir}/test_vault"\neditor = "env_editor"')
+
+            cli_config = Path(temp_dir) / "cli.toml"
+            cli_config.write_text(f'vault = "{temp_dir}/test_vault"\neditor = "cli_editor"')
+
+            (Path(temp_dir) / "test_vault").mkdir()
+
+            # CLI should override env var
+            with patch.dict("os.environ", {"OBSIDIAN_CONFIG_DIRS": str(env_config)}):
+                result = self.runner.invoke(cli, ["--config", str(cli_config), "info"])
+
+                self.assertEqual(result.exit_code, 0)
+                self.assertIn("cli_editor", result.output)
+                self.assertNotIn("env_editor", result.output)
+
     def test_typer_logger_handler(self):
         """Test TyperLoggerHandler functionality."""
 
@@ -458,10 +561,10 @@ This is the content.
             self.assertNotIn("title: Test", result.output)
             self.assertIn("This is the content.", result.output)
 
-    @patch("subprocess.call")
-    def test_edit_command_success(self, mock_call):
+    @patch("subprocess.run")
+    def test_edit_command_success(self, mock_run):
         """Test edit command successful execution."""
-        mock_call.return_value = 0
+        mock_run.return_value = None
 
         with self.runner.isolated_filesystem():
             vault = Path("vault").resolve()
@@ -479,12 +582,12 @@ Content
                 cli, ["--vault", str(vault), "--editor", "vi", "edit", "test"]
             )
             self.assertEqual(result.exit_code, 0)
-            mock_call.assert_called()
+            mock_run.assert_called()
 
-    @patch("subprocess.call")
-    def test_edit_command_editor_not_found(self, mock_call):
+    @patch("subprocess.run")
+    def test_edit_command_editor_not_found(self, mock_run):
         """Test edit command when editor is not found."""
-        mock_call.side_effect = FileNotFoundError("Editor not found")
+        mock_run.side_effect = FileNotFoundError("Editor not found")
 
         with self.runner.isolated_filesystem():
             vault = Path("vault").resolve()
@@ -502,10 +605,10 @@ Content
             # Verify that the error was logged - the exact output may vary in test environment
             # but we can verify the exit code confirms the FileNotFoundError path was taken
 
-    @patch("subprocess.call")
-    def test_edit_command_general_error(self, mock_call):
+    @patch("subprocess.run")
+    def test_edit_command_general_error(self, mock_run):
         """Test edit command with general exception."""
-        mock_call.side_effect = Exception("General error")
+        mock_run.side_effect = Exception("General error")
 
         with self.runner.isolated_filesystem():
             vault = Path("vault").resolve()
@@ -581,12 +684,14 @@ Content
             vault = Path("vault").resolve()
             vault.mkdir()
 
-            result = self.runner.invoke(
-                cli, ["--vault", str(vault), "journal", "--date", "invalid-date"]
-            )
-            self.assertEqual(result.exit_code, 1)
-            # With logging changes, we verify the exit code confirms the invalid
-            # date error path was taken
+            # Mock subprocess.run so we don't actually try to launch an editor
+            with patch("subprocess.run", return_value=None):
+                result = self.runner.invoke(
+                    cli, ["--vault", str(vault), "journal", "--date", "invalid-date"]
+                )
+                # Current implementation uses typer.BadParameter (exit code 2) for date validation
+                self.assertEqual(result.exit_code, 2)
+                # Error is displayed to user via BadParameter with usage help
 
     def test_journal_file_not_found(self):
         """Test journal command when edit command raises FileNotFoundError."""
@@ -646,7 +751,7 @@ journal_template = "Journal/{{year}}/{{month:02d}}/{{day:02d}}"
             expected_file = expected_dir / f"{today.year}-{today.month:02d}-{today.day:02d}.md"
             expected_file.write_text("test content")
 
-            with patch("subprocess.call", return_value=0):
+            with patch("subprocess.run", return_value=None):
                 result = self.runner.invoke(cli, ["--vault", str(vault), "--verbose", "journal"])
                 self.assertEqual(result.exit_code, 0)
                 # In verbose mode, debug logging should occur but we verify via exit code

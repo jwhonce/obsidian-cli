@@ -1,0 +1,74 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Python: Debug obsidian-cli",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/src/obsidian_cli/main.py",
+            "args": [
+                "--vault",
+                "~/Shared/Journal Vault",
+                "--verbose",
+                "info"
+            ],
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "python": "${workspaceFolder}/venv/bin/python",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}"
+            }
+        },
+        {
+            "name": "Python: Debug obsidian-cli (Query)",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/src/obsidian_cli/main.py",
+            "args": [
+                "--vault",
+                "~/Shared/Journal Vault",
+                "--verbose",
+                "query",
+                "tags",
+                "--exists"
+            ],
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "python": "${workspaceFolder}/venv/bin/python",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}"
+            }
+        },
+        {
+            "name": "Python: Debug obsidian-cli (Find)",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/src/obsidian_cli/main.py",
+            "args": [
+                "--vault",
+                "~/Shared/Journal Vault",
+                "--verbose",
+                "find",
+                "Test"
+            ],
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "python": "${workspaceFolder}/venv/bin/python",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}"
+            }
+        },
+        {
+            "name": "Python: Current File",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "python": "${workspaceFolder}/venv/bin/python",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}"
+            }
+        }
+    ]
+}
