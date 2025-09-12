@@ -81,7 +81,7 @@ Configuration:
     - {weekday_abbr}: Abbreviated weekday (e.g., Mon)
 
 Author: Jhon Honce / Copilot enablement
-Version: 0.1.17
+Version: 0.1.18
 License: Apache License 2.0
 """
 
@@ -132,7 +132,7 @@ except Exception:  # pylint: disable=broad-except
     try:
         from . import __version__
     except Exception:  # pylint: disable=broad-except
-        __version__ = "0.1.17"  # Fallback version
+        __version__ = "0.1.18"  # Fallback version
 
 
 # Initialize Typer app

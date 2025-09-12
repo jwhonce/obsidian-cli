@@ -4,7 +4,7 @@ A command-line interface for interacting with Obsidian vaults with AI assistant 
 Model Context Protocol (MCP).
 
 [![Test Coverage](https://img.shields.io/badge/coverage-78%25-brightgreen.svg)](https://github.com/jhonce/obsidian-cli)
-[![Version](https://img.shields.io/badge/version-0.1.16-blue.svg)](https://github.com/jhonce/obsidian-cli)
+[![Version](https://img.shields.io/badge/version-0.1.18-blue.svg)](https://github.com/jhonce/obsidian-cli)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 
 ## Features
