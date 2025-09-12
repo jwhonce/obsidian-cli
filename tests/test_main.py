@@ -67,9 +67,9 @@ class TestMain(unittest.TestCase):
                 Path(temp_dir, "config").mkdir()
                 Path(temp_dir, "home").mkdir()
 
-                source, config = Configuration.from_path()
+                from_file, config = Configuration.from_path()
 
-                self.assertIsNone(source)  # No config file should be found
+                self.assertFalse(from_file)  # No config file should be found
                 self._assert_default_config_values(config)
 
             finally:
@@ -113,9 +113,9 @@ blacklist = ["temp/", "cache/"]
                 )
 
                 # Test loading configuration
-                source, config = Configuration.from_path()
+                from_file, config = Configuration.from_path()
 
-                self.assertEqual(source, config_file)
+                self.assertTrue(from_file)  # Config file should be found
                 self.assertEqual(str(config.vault), "/test/vault")
                 self.assertEqual(str(config.editor), "nano")
                 self.assertTrue(config.verbose)
@@ -352,7 +352,7 @@ blacklist = ["temp/", "cache/"]
         """Test that missing vault path triggers proper error handling."""
         # Mock Configuration to return None vault
         with patch("obsidian_cli.utils.Configuration.from_path") as mock_config:
-            mock_config.return_value = (None, Configuration(vault=None))
+            mock_config.return_value = (False, Configuration(vault=None))
 
             result = self.runner.invoke(cli, ["info"])
 

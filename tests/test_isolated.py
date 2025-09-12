@@ -60,8 +60,8 @@ vault = "/xdg/vault"
 editor = "nano"
 """)
 
-        source, config = Configuration.from_path()
-        self.assertEqual(source, xdg_config_file)
+        from_file, config = Configuration.from_path()
+        self.assertTrue(from_file)  # Config file should be found
         self.assertEqual(str(config.vault), "/xdg/vault")
         self.assertEqual(str(config.editor), "nano")
 
@@ -77,8 +77,8 @@ vault = "/home/vault"
 editor = "vim"
 """)
 
-        source, config = Configuration.from_path()
-        self.assertEqual(source, home_config_file)
+        from_file, config = Configuration.from_path()
+        self.assertTrue(from_file)  # Config file should be found
         self.assertEqual(str(config.vault), "/home/vault")
         self.assertEqual(str(config.editor), "vim")
 
@@ -87,8 +87,8 @@ editor = "vim"
 
     def test_no_config_file_defaults(self):
         """Test default configuration when no config file exists."""
-        source, config = Configuration.from_path()
-        self.assertIsNone(source)
+        from_file, config = Configuration.from_path()
+        self.assertFalse(from_file)  # No config file should be found
         self.assertEqual(config.editor, Path("vi"))
         self.assertEqual(config.ident_key, "uid")
         self.assertEqual(config.blacklist, ["Assets/", ".obsidian/", ".git/"])

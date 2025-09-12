@@ -5,10 +5,27 @@ that exposes Obsidian vault operations as tools that can be used by
 AI assistants and other MCP clients.
 """
 
+import io
 import logging
+import sys
+from contextlib import redirect_stdout
 from pathlib import Path
+from unittest.mock import patch
 
 import typer
+
+from . import __version__
+from .utils import _get_vault_info
+
+# MCP imports with error handling
+try:
+    from mcp.server import InitializationOptions, Server
+    from mcp.server.stdio import stdio_server
+    from mcp.types import ServerCapabilities, TextContent, Tool
+except ImportError as e:
+    raise ImportError(
+        f"MCP dependencies not installed. Please install with: pip install mcp. Details: {e}"
+    ) from e
 
 logger = logging.getLogger(__name__)
 
@@ -20,15 +37,6 @@ async def serve_mcp(ctx: typer.Context, state) -> None:
         ctx: Typer context for accessing CLI functionality
         state: State object containing vault configuration
     """
-    try:
-        from mcp.server import Server
-        from mcp.server.stdio import stdio_server
-        from mcp.types import TextContent, Tool
-    except ImportError as e:
-        raise ImportError(
-            f"MCP dependencies not installed. Please install with: pip install mcp. Details: {e}"
-        ) from e
-
     # Create MCP server
     server = Server("obsidian-vault")
 
@@ -116,11 +124,6 @@ async def serve_mcp(ctx: typer.Context, state) -> None:
 
     # Run the server
     async with stdio_server() as (read_stream, write_stream):
-        from mcp.server import InitializationOptions
-        from mcp.types import ServerCapabilities
-
-        from . import __version__
-
         init_options = InitializationOptions(
             server_name="obsidian-vault",
             server_version=__version__,
@@ -131,20 +134,15 @@ async def serve_mcp(ctx: typer.Context, state) -> None:
 
 async def handle_create_note(ctx: typer.Context, state, args: dict) -> list:
     """Create a new note in the vault."""
-    from mcp.types import TextContent
-
     filename = args["filename"]
     content = args.get("content", "")
     force = args.get("force", False)
 
     try:
-        import sys
-        from pathlib import Path
-        from unittest.mock import patch
-
         from .main import new
 
-        # Convert filename to Path object (remove .md if present, new() will add it)
+        # Convert filename to Path object
+        # (remove .md if present, new() will add it)
         filename_path = Path(filename)
         if filename_path.suffix == ".md":
             filename_path = filename_path.with_suffix("")
@@ -177,8 +175,6 @@ async def handle_create_note(ctx: typer.Context, state, args: dict) -> list:
 
 async def handle_find_notes(ctx: typer.Context, state, args: dict) -> list:
     """Find notes by name or title."""
-    from mcp.types import TextContent
-
     term = args["term"]
     exact = args.get("exact", False)
 
@@ -202,16 +198,10 @@ async def handle_find_notes(ctx: typer.Context, state, args: dict) -> list:
 
 async def handle_get_note_content(ctx: typer.Context, state, args: dict) -> list:
     """Get the content of a specific note."""
-    from mcp.types import TextContent
-
     filename = args["filename"]
     show_frontmatter = args.get("show_frontmatter", False)
 
     try:
-        import io
-        from contextlib import redirect_stdout
-        from pathlib import Path
-
         from .main import cat
 
         # Convert filename to Path object
@@ -239,26 +229,45 @@ async def handle_get_note_content(ctx: typer.Context, state, args: dict) -> list
 
 async def handle_get_vault_info(ctx: typer.Context, state, args: dict) -> list:
     """Get information about the vault."""
-    from mcp.types import TextContent
-
     try:
-        from .utils import _get_vault_info
-
         vault_info = _get_vault_info(state)
 
         if not vault_info["exists"]:
             return [TextContent(type="text", text=vault_info["error"])]
 
-        info = f"""Obsidian Vault Information:
-- Path: {vault_info["vault_path"]}
-- Total files: {vault_info["total_files"]}
-- Total directories: {vault_info["total_directories"]}
-- Markdown files: {vault_info["markdown_files"]}
-- Editor: {vault_info["editor"]}
-- Blacklist: {", ".join(vault_info["blacklist"])}
-- Journal template: {vault_info["journal_template"]}
-- Version: {vault_info["version"]}
-"""
+        # Build file type statistics section
+        file_type_section = ""
+        if "file_type_stats" in vault_info and vault_info["file_type_stats"]:
+            file_type_section = "\n- File Types by Extension:\n"
+            for ext, stats in sorted(vault_info["file_type_stats"].items()):
+                # Format size with appropriate units
+                size = stats["total_size"]
+                if size == 0:
+                    size_str = "0 bytes"
+                elif size < 1024:
+                    size_str = f"{size} bytes"
+                elif size < 1024 * 1024:
+                    size_str = f"{size / 1024:.1f} KB"
+                elif size < 1024 * 1024 * 1024:
+                    size_str = f"{size / (1024 * 1024):.1f} MB"
+                else:
+                    size_str = f"{size / (1024 * 1024 * 1024):.1f} GB"
+
+                file_type_section += f"  - {ext}: {stats['count']} files ({size_str})\n"
+        else:
+            file_type_section = "\n- File Types: No files found\n"
+
+        info = (
+            f"Obsidian Vault Information:\n"
+            f"- Path: {vault_info['vault_path']}\n"
+            f"- Total files: {vault_info['total_files']}\n"
+            f"- Total directories: {vault_info['total_directories']}"
+            f"{file_type_section}"
+            f"- Editor: {vault_info['editor']}\n"
+            f"- Blacklist: {', '.join(vault_info['blacklist'])}\n"
+            f"- Journal template: {vault_info['journal_template']}\n"
+            f"- Version: {vault_info['version']}\n"
+        )
 
         return [TextContent(type="text", text=info)]
     except Exception as e:

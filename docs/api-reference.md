@@ -65,9 +65,12 @@ Immutable configuration class for obsidian-cli application settings.
 
 #### Class Methods
 
-##### `from_path(path: Optional[Union[str, Path]] = None, verbose: bool = False) -> Tuple[Union[Path | None], "Configuration"]`
+##### `from_path(path: Optional[Union[str, Path]] = None, verbose: bool = False) -> Tuple[bool, "Configuration"]`
 
 Load configuration from TOML file.
+
+**Returns:**
+- `Tuple[bool, Configuration]`: (True if config was read from file, False if using defaults, Configuration instance)
 
 **Parameters**:
 

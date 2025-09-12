@@ -113,7 +113,7 @@ raise ObsidianFileError(path, "Configuration file not found")
 
 ```python
 try:
-    (source, configuration) = Configuration.from_path(config, verbose=verbose)
+    (config_from_file, configuration) = Configuration.from_path(config, verbose=verbose)
 except (FileError, ObsidianFileError):
     # Re-raise file errors to be handled by Click/Typer
     raise

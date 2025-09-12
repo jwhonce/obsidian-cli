@@ -4,6 +4,7 @@ import json
 import os
 import tomllib
 from collections import defaultdict
+from contextlib import suppress
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
@@ -64,19 +65,6 @@ class ObsidianFileError(FileError):
         )
 
 
-def _check_if_path_blacklisted(rel_path: Path, blacklist: list[str]) -> bool:
-    """Check if a relative path should be blacklisted based on configured patterns.
-
-    Args:
-        rel_path: The relative path to check.
-        blacklist: List of directory patterns to blacklist.
-
-    Returns:
-        bool: True if the path should be blacklisted, False otherwise.
-    """
-    return any(str(rel_path).startswith(pattern) for pattern in blacklist)
-
-
 def _check_filename_match(file_stem: str, search_name: str, exact_match: bool) -> bool:
     """Check if a filename matches the search criteria.
 
@@ -93,6 +81,19 @@ def _check_filename_match(file_stem: str, search_name: str, exact_match: bool) -
         return file_stem == search_name
     else:
         return search_name in file_stem.lower()
+
+
+def _check_if_path_blacklisted(rel_path: Path, blacklist: list[str]) -> bool:
+    """Check if a relative path should be blacklisted based on configured patterns.
+
+    Args:
+        rel_path: The relative path to check.
+        blacklist: List of directory patterns to blacklist.
+
+    Returns:
+        bool: True if the path should be blacklisted, False otherwise.
+    """
+    return any(str(rel_path).startswith(pattern) for pattern in blacklist)
 
 
 def _check_title_match(post: frontmatter.Post, search_name: str) -> bool:
@@ -138,13 +139,11 @@ def _display_find_results(matches: list[Path], page_name: str, verbose: bool, va
 
             # Show frontmatter title if verbose and it exists
             if verbose:
-                try:
+                with suppress(Exception):
                     path = vault / match
                     post = _get_frontmatter(path)
                     if "title" in post.metadata:
                         typer.echo(f"  title: {post.metadata['title']}")
-                except Exception:
-                    pass
 
 
 def _display_metadata_key(post: frontmatter.Post, key: str) -> None:
@@ -266,13 +265,10 @@ def _find_matching_files(vault: Path, search_name: str, exact_match: bool) -> li
 
         # Also check frontmatter for title field if not exact match
         if not exact_match:
-            try:
+            with suppress(Exception):
                 post = _get_frontmatter(file_path)
                 if _check_title_match(post, search_name) and rel_path not in matches:
                     matches.append(rel_path)
-            except Exception:
-                # Skip files with issues in frontmatter
-                pass
 
     return matches
 
@@ -311,6 +307,81 @@ def _get_journal_template_vars(date: datetime) -> dict[str, str | int]:
         "month_abbr": date.strftime("%b"),
         "weekday": date.strftime("%A"),
         "weekday_abbr": date.strftime("%a"),
+    }
+
+
+def _get_vault_info(state: "State") -> dict[str, Any]:
+    """Get vault information as structured data.
+
+    Args:
+        state: State object containing vault configuration
+
+    Returns:
+        Dictionary containing vault information
+    """
+    # Import version from main module to avoid duplication
+    from .main import __version__
+
+    # MCP server uses this function with state.vault as a string
+    vault_path = Path(state.vault)
+
+    if not vault_path.exists():
+        return {
+            "error": f"Vault not found at: {vault_path}",
+            "vault_path": str(vault_path),
+            "exists": False,
+        }
+
+    def _walk_vault(path: Path):
+        """Recursively walks a directory and yields Path objects for directories and files."""
+        yield path
+
+        for entry in path.iterdir():
+            if entry.is_dir():
+                # Recursively call for subdirectories
+                yield from _walk_vault(entry)
+            else:
+                # Yield file Path object
+                yield entry
+
+    summary: dict[str, dict[str, int]] = defaultdict(lambda: {"count": 0, "total_size": 0})
+    file_type_stats: dict[str, dict[str, int]] = defaultdict(lambda: {"count": 0, "total_size": 0})
+
+    for entry in _walk_vault(vault_path):
+        if entry.is_dir():
+            summary["directories"]["count"] += 1
+            with suppress(Exception):
+                summary["directories"]["total_size"] += entry.lstat().st_size
+
+        elif entry.is_file():
+            summary["files"]["count"] += 1
+
+            suffix = (entry.suffix or "no_extension").lstrip(".")
+            file_type_stats[suffix]["count"] += 1
+            with suppress(Exception):
+                st_size = entry.lstat().st_size
+                summary["files"]["total_size"] += st_size
+                file_type_stats[suffix]["total_size"] += st_size
+
+    # Get journal template information
+    template_vars = _get_journal_template_vars(datetime.now())
+    journal_path_str = state.journal_template.format(**template_vars)
+
+    return {
+        "blacklist": state.blacklist,
+        "editor": state.editor,
+        "exists": True,
+        "journal_path": journal_path_str,
+        "journal_template": state.journal_template,
+        "markdown_files": file_type_stats.get("md", {}).get(
+            "count", 0
+        ),  # Keep for backward compatibility
+        "file_type_stats": file_type_stats,
+        "total_directories": summary["directories"]["count"],
+        "total_files": summary["files"]["count"],
+        "vault_path": str(vault_path),
+        "verbose": state.verbose,
+        "version": __version__,
     }
 
 
@@ -390,77 +461,6 @@ def _update_metadata_key(
         typer.echo(f"Updated '{key}': '{value}' in {filename}")
 
 
-def _get_vault_info(state: "State") -> dict[str, Any]:
-    """Get vault information as structured data.
-
-    Args:
-        state: State object containing vault configuration
-
-    Returns:
-        Dictionary containing vault information
-    """
-    # Import version from main module to avoid duplication
-    from .main import __version__
-
-    # MCP server uses this function with state.vault as a string
-    vault_path = Path(state.vault)
-
-    if not vault_path.exists():
-        return {
-            "error": f"Vault not found at: {vault_path}",
-            "vault_path": str(vault_path),
-            "exists": False,
-        }
-
-    def _walk_vault(path: Path):
-        """Recursively walks a directory and yields Path objects for directories and files."""
-        yield path
-
-        for entry in path.iterdir():
-            if entry.is_dir():
-                # Recursively call for subdirectories
-                yield from _walk_vault(entry)
-            else:
-                # Yield file Path object
-                yield entry
-
-    summary: dict[str, dict[str, int]] = defaultdict(lambda: {"count": 0, "total_size": 0})
-
-    for entry in _walk_vault(vault_path):
-        if entry.is_dir():
-            summary["directories"]["count"] += 1
-            summary["directories"]["total_size"] += entry.lstat().st_size
-
-        elif entry.is_file():
-            summary["files"]["count"] += 1
-            summary[entry.suffix]["count"] += 1
-
-            try:
-                st_size = entry.lstat().st_size
-                summary["files"]["total_size"] += st_size
-                summary[entry.suffix]["total_size"] += st_size
-            except Exception:
-                pass
-
-    # Get journal template information
-    template_vars = _get_journal_template_vars(datetime.now())
-    journal_path_str = state.journal_template.format(**template_vars)
-
-    return {
-        "blacklist": state.blacklist,
-        "editor": state.editor,
-        "exists": True,
-        "journal_path": journal_path_str,
-        "journal_template": state.journal_template,
-        "markdown_files": summary[".md"]["count"],
-        "total_directories": summary["directories"]["count"],
-        "total_files": summary["files"]["count"],
-        "vault_path": str(vault_path),
-        "verbose": state.verbose,
-        "version": __version__,
-    }
-
-
 @dataclass(frozen=True)
 class Configuration:
     """Record configuration for obsidian-cli application.
@@ -499,13 +499,17 @@ class Configuration:
     @classmethod
     def from_path(
         cls, path: Optional[str] = None, verbose: bool = False
-    ) -> Tuple[Union[Path | None], "Configuration"]:
-        """Load configuration from a TOML file or colon-separated list of files."""
+    ) -> Tuple[bool, "Configuration"]:
+        """Load configuration from a TOML file or colon-separated list of files.
+
+        Returns:
+            Tuple[bool, Configuration]: (True if config was read from file, False if using defaults, Configuration)
+        """
 
         # Initialize default configuration
         default = cls()
 
-        file = None
+        config_found = False
         config_data = {}
         if path:
             # Handle colon-separated paths (OBSIDIAN_CONFIG_DIRS)
@@ -513,7 +517,7 @@ class Configuration:
                 try:
                     p = Path(entry.strip())  # Strip whitespace from each entry
                     config_data = cls._load_toml_config(p, verbose)
-                    file = p
+                    config_found = True
                     break
                 except ObsidianFileError:
                     continue
@@ -524,13 +528,13 @@ class Configuration:
             for entry in default.config_dirs:
                 try:
                     config_data = cls._load_toml_config(entry, verbose)
-                    file = entry
+                    config_found = True
                     break
                 except ObsidianFileError:
                     continue
 
         return (
-            file,
+            config_found,
             cls(
                 blacklist=config_data.get(
                     "blacklist", config_data.get("ignored_directories", default.blacklist)

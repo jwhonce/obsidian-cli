@@ -56,12 +56,12 @@ class TestCoverageImprovements(unittest.TestCase):
                 actual_logger.setLevel(logging.DEBUG)
 
                 try:
-                    # Mock Configuration.from_path to return (None, default_config)
-                    # simulating no config file found - the key is source=None
+                    # Mock Configuration.from_path to return (False, default_config)
+                    # simulating no config file found - the key is config_from_file=False
                     with patch("obsidian_cli.utils.Configuration.from_path") as mock_from_path:
                         mock_config = Configuration()  # Use default config (verbose=False)
-                        # This is the critical part - source must be None (not False or empty)
-                        mock_from_path.return_value = (None, mock_config)
+                        # This is the critical part - config_from_file must be False
+                        mock_from_path.return_value = (False, mock_config)
 
                         # Create a valid vault directory for the info command
                         vault_dir = Path(temp_dir) / "test_vault"
@@ -155,7 +155,7 @@ invalid_syntax ===== "broken"
                     # Mock Configuration.from_path to return config without vault
                     with patch("obsidian_cli.utils.Configuration.from_path") as mock_from_path:
                         mock_config = Configuration(vault=None)
-                        mock_from_path.return_value = (None, mock_config)
+                        mock_from_path.return_value = (False, mock_config)
 
                         # Test that main() raises BadParameter for missing vault
                         with self.assertRaises(typer.BadParameter) as context:
@@ -353,7 +353,8 @@ verbose = true
                     cli, ["--vault", str(Path(temp_dir) / "test_vault"), "info"]
                 )
                 self.assertNotEqual(result.exit_code, 0)
-                self.assertIn("Provided configuration file(s) not found", result.output)
+                # Rich formatting splits error messages across lines, so check for key parts
+                self.assertIn("configuration file(s) not found", result.output)
 
             # Multiple nonexistent files
             missing_paths = f"{Path(temp_dir)}/missing1.toml:{Path(temp_dir)}/missing2.toml"
@@ -362,7 +363,8 @@ verbose = true
                     cli, ["--vault", str(Path(temp_dir) / "test_vault"), "info"]
                 )
                 self.assertNotEqual(result.exit_code, 0)
-                self.assertIn("Provided configuration file(s) not found", result.output)
+                # Rich formatting splits error messages across lines, so check for key parts
+                self.assertIn("configuration file(s) not found", result.output)
 
     def test_obsidian_config_dirs_cli_override(self):
         """Test that --config CLI option overrides OBSIDIAN_CONFIG_DIRS."""
@@ -670,6 +672,72 @@ Content
         info = _get_vault_info(state)
         self.assertFalse(info["exists"])
         self.assertIn("error", info)
+
+    def test_get_vault_info_file_type_stats(self):
+        """Test _get_vault_info returns file type statistics for all file types."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            vault = Path(temp_dir)
+
+            # Create files of different types
+            (vault / "note1.md").write_text("# Note 1")
+            (vault / "note2.md").write_text("# Note 2")
+            (vault / "readme.txt").write_text("Read me")
+            (vault / "config.json").write_text('{"setting": "value"}')
+            (vault / "image.png").write_bytes(b"fake png data")
+            (vault / "no_extension").write_text("file without extension")
+
+            # Create a subdirectory with more files
+            subdir = vault / "subdir"
+            subdir.mkdir()
+            (subdir / "another.md").write_text("# Another")
+            (subdir / "script.py").write_text("print('hello')")
+
+            state = State(
+                editor=Path("vi"),
+                ident_key="uid",
+                blacklist=[],
+                journal_template="test",
+                vault=vault,
+                verbose=False,
+            )
+
+            info = _get_vault_info(state)
+
+            # Verify the function succeeded
+            self.assertTrue(info["exists"])
+            self.assertIn("file_type_stats", info)
+
+            # Check file type statistics
+            stats = info["file_type_stats"]
+
+            # Verify markdown files (3 total: note1.md, note2.md, another.md)
+            self.assertIn("md", stats)
+            self.assertEqual(stats["md"]["count"], 3)
+
+            # Verify other file types (1 each)
+            self.assertIn("txt", stats)
+            self.assertEqual(stats["txt"]["count"], 1)
+
+            self.assertIn("json", stats)
+            self.assertEqual(stats["json"]["count"], 1)
+
+            self.assertIn("png", stats)
+            self.assertEqual(stats["png"]["count"], 1)
+
+            self.assertIn("py", stats)
+            self.assertEqual(stats["py"]["count"], 1)
+
+            # Verify file without extension
+            self.assertIn("no_extension", stats)
+            self.assertEqual(stats["no_extension"]["count"], 1)
+
+            # Verify backward compatibility
+            self.assertIn("markdown_files", info)
+            self.assertEqual(info["markdown_files"], 3)
+
+            # Verify total counts
+            self.assertEqual(info["total_files"], 8)  # 8 files total
+            self.assertEqual(info["total_directories"], 2)  # vault + subdir
 
     def test_info_command_nonexistent_vault(self):
         """Test info command with nonexistent vault."""

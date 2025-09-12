@@ -230,7 +230,7 @@ def main(
     # Configuration order of precedence:
     #   command line args > environment variables > config file > coded default
     try:
-        (source, configuration) = Configuration.from_path(config, verbose=verbose is True)
+        (from_file, configuration) = Configuration.from_path(config, verbose=verbose is True)
     except ObsidianFileError:
         raise
     except tomllib.TOMLDecodeError as e:
@@ -242,7 +242,7 @@ def main(
         verbose = configuration.verbose
     logger.setLevel(logging.DEBUG if verbose else logging.WARN)
 
-    if source is None:
+    if not from_file:
         logger.info("Hard-coded defaults will be used as no config file was found.")
 
     # Apply configuration values if CLI arguments are not provided

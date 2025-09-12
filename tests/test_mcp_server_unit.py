@@ -4,6 +4,7 @@ import socketserver
 import sys
 import types
 import unittest
+from contextlib import suppress
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import MagicMock, patch
@@ -77,7 +78,8 @@ class TestMCPServerUnit(unittest.TestCase):
                     super().finish()
 
                 def handle(self):  # type: ignore[override]
-                    try:
+                    # Ensure handler never raises
+                    with suppress(Exception):
                         data = self.request.recv(4096)  # type: ignore[attr-defined]
                         if not data:
                             return
@@ -87,9 +89,6 @@ class TestMCPServerUnit(unittest.TestCase):
                         except json.JSONDecodeError:
                             response = {"success": False, "error": "Invalid JSON"}
                         self.request.sendall(json.dumps(response).encode())  # type: ignore[attr-defined]
-                    except Exception:
-                        # Ensure handler never raises
-                        pass
 
             self.mcp.MCPHandler = _FallbackMCPHandler
 

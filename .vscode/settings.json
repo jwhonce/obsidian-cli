@@ -60,6 +60,7 @@
         "ENOENT",
         "frontmatter",
         "levelno",
+        "mdutils",
         "pyproject",
         "secho",
         "signum",
