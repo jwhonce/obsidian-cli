@@ -1,24 +1,29 @@
 # Obsidian CLI Documentation
 
-Welcome to the documentation for obsidian-cli v0.1.14, a command-line interface for interacting with Obsidian vaults.
+Welcome to the documentation for obsidian-cli v0.1.14, a command-line interface for interacting with
+Obsidian vaults.
 
 ## Overview
 
-obsidian-cli is a Python package that provides a comprehensive set of command-line tools to interact with Obsidian vaults. It facilitates tasks such as creating notes, editing content, querying metadata, and managing files from the terminal. With 78% test coverage and 117 tests, it provides a reliable foundation for vault automation and AI integration.
+obsidian-cli is a Python package that provides a comprehensive set of command-line tools to interact
+with Obsidian vaults. It facilitates tasks such as creating notes, editing content, querying
+metadata, and managing files from the terminal. With 78% test coverage and 117 tests, it provides a
+reliable foundation for vault automation and AI integration.
 
 ## Table of Contents
 
 1. [Installation](installation.md) - How to install obsidian-cli
 2. [Configuration](configuration.md) - How to configure obsidian-cli
 3. [Commands](commands.md) - Detailed reference for all available commands
-4. [MCP Integration](mcp-integration.md) - Model Context Protocol server for AI assistant integration
+4. [MCP Integration](mcp-integration.md) - Model Context Protocol server for AI assistant
+   integration
 5. [Force Options](force-options.md) - Documentation on force flags and data safety
 6. [Contributing](contributing.md) - Guidelines for contributing to the project
 
 ## Key Features
 
 - **Create and edit** markdown files with proper frontmatter management
-- **Query and search** files based on frontmatter metadata and content  
+- **Query and search** files based on frontmatter metadata and content
 - **Metadata management** - view and update YAML frontmatter in existing files
 - **Unique ID generation** - add UUIDs to files for consistent referencing
 - **Journal integration** - quick access to daily notes with template support
@@ -62,7 +67,9 @@ obsidian-cli serve
 
 ## Project Status
 
-obsidian-cli v0.1.14 is a stable release with comprehensive test coverage (78%) and robust functionality. The project is actively maintained and continues to evolve with new features and improvements.
+obsidian-cli v0.1.14 is a stable release with comprehensive test coverage (78%) and robust
+functionality. The project is actively maintained and continues to evolve with new features and
+improvements.
 
 ### Recent Achievements
 

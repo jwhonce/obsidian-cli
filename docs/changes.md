@@ -9,7 +9,7 @@ This document lists the significant recent changes to obsidian-cli.
 - **Comprehensive Test Suite**: Achieved 78% test coverage with 117 tests
 - **Enhanced Test Infrastructure**: Added extensive test coverage for all major components
   - `tests/test_coverage_improvements.py` - 24 tests covering main.py functionality
-  - `tests/test_mcp_server_comprehensive.py` - 17 tests covering MCP server functionality  
+  - `tests/test_mcp_server_comprehensive.py` - 17 tests covering MCP server functionality
   - `tests/test_utils_coverage.py` - Additional tests for utils module
 - **Improved Makefile**: Enhanced coverage target with 75% threshold enforcement
 - **Robust Error Handling**: Fixed stderr capture issues across all test files
@@ -25,20 +25,23 @@ This document lists the significant recent changes to obsidian-cli.
 ### Fixed
 
 - **Test Failures**: Resolved 4 failing tests related to stderr capture
-- **Coverage Reporting**: Fixed inconsistent coverage calculations between different execution methods
+- **Coverage Reporting**: Fixed inconsistent coverage calculations between different execution
+  methods
 - **CLI Runner Issues**: Updated test framework to work with current typer version
 
 ## Version 0.1.12
 
 ### Changed
 
-- The CLI now uses default settings instead of raising an error when no configuration file is found. The `--vault` option is required in this case.
+- The CLI now uses default settings instead of raising an error when no configuration file is found.
+  The `--vault` option is required in this case.
 
 ## Version 0.1.9
 
 ### Added
 
-- **MCP (Model Context Protocol) server**: New `serve` command that starts an MCP server for AI assistant integration
+- **MCP (Model Context Protocol) server**: New `serve` command that starts an MCP server for AI
+  assistant integration
 - MCP server exposes vault operations as standardized tools for AI assistants
 - Available MCP tools: create_note, find_notes, get_note_content, get_vault_info
 - Server runs over stdio using the MCP protocol until interrupted
@@ -69,8 +72,10 @@ This document lists the significant recent changes to obsidian-cli.
 ### Changed
 
 - **Journal command behavior**: Removed the `--create/--no-create` option from the journal command
-- Journal command now only opens existing journal files and exits with an error if the file doesn't exist
-- Users must create journal files manually using the `new` command before opening them with `journal`
+- Journal command now only opens existing journal files and exits with an error if the file doesn't
+  exist
+- Users must create journal files manually using the `new` command before opening them with
+  `journal`
 - Improved boolean flag patterns across CLI commands using `--flag/--no-flag` syntax
 - Enhanced CLI user experience with consistent flag handling
 
@@ -113,7 +118,8 @@ This document lists the significant recent changes to obsidian-cli.
 ### Added
 
 - Force option (`--force` or `-f`) to the `new` command to allow overwriting existing files
-- **Configurable directory filtering**: Added `ignored_directories` configuration option to exclude specific directories from query operations
+- **Configurable directory filtering**: Added `ignored_directories` configuration option to exclude
+  specific directories from query operations
 - Consistent type annotation with `PAGE_FILE` type used across all commands
 - Improved help text clarity for query command options
 - Makefile for simplified build, development, testing, and publishing

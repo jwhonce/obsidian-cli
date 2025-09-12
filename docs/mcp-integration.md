@@ -1,14 +1,21 @@
 # MCP (Model Context Protocol) Integration
 
-Obsidian CLI includes a powerful MCP server that exposes vault operations as standardized tools for AI assistants and other MCP clients. This integration allows AI systems to directly interact with your Obsidian vault, enabling seamless note management, content retrieval, and vault organization through natural language interfaces.
+Obsidian CLI includes a powerful MCP server that exposes vault operations as standardized tools for
+AI assistants and other MCP clients. This integration allows AI systems to directly interact with
+your Obsidian vault, enabling seamless note management, content retrieval, and vault organization
+through natural language interfaces.
 
 ## Overview
 
-The Model Context Protocol (MCP) is an open standard that enables AI assistants to securely connect to external data sources and tools. By implementing an MCP server, Obsidian CLI makes your vault accessible to any MCP-compatible AI assistant, allowing for sophisticated knowledge management workflows.
+The Model Context Protocol (MCP) is an open standard that enables AI assistants to securely connect
+to external data sources and tools. By implementing an MCP server, Obsidian CLI makes your vault
+accessible to any MCP-compatible AI assistant, allowing for sophisticated knowledge management
+workflows.
 
 ### Key Benefits
 
-- **Direct Vault Access**: AI assistants can create, read, and search notes without manual intervention
+- **Direct Vault Access**: AI assistants can create, read, and search notes without manual
+  intervention
 - **Standardized Interface**: Uses the open MCP protocol for broad compatibility
 - **Secure Communication**: Operates over stdio with controlled access permissions
 - **Real-time Interaction**: Immediate synchronization between AI actions and vault state
@@ -364,7 +371,8 @@ tail -f mcp-server.log
 
 ### Custom Tool Integration
 
-The MCP server architecture allows for future extension with additional tools. Current implementation focuses on core vault operations, with planned expansions for:
+The MCP server architecture allows for future extension with additional tools. Current
+implementation focuses on core vault operations, with planned expansions for:
 
 - Template management
 - Tag operations

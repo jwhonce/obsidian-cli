@@ -15,7 +15,8 @@ The recommended way to install obsidian-cli is through PyPI:
 pip install obsidian-cli
 ```
 
-The standard installation includes all necessary dependencies including MCP (Model Context Protocol) support for AI assistant integration.
+The standard installation includes all necessary dependencies including MCP (Model Context Protocol)
+support for AI assistant integration.
 
 ### Installation Options
 
@@ -27,7 +28,7 @@ The standard installation includes all necessary dependencies including MCP (Mod
 The standard installation includes:
 
 - Core CLI functionality
-- MCP server for AI assistant integration  
+- MCP server for AI assistant integration
 - TOML configuration support
 - Frontmatter parsing
 - Rich terminal output

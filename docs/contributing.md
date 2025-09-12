@@ -1,6 +1,7 @@
 # Contributing to Obsidian CLI
 
-Thank you for your interest in contributing to obsidian-cli! This document provides guidelines and instructions for contributing to the project.
+Thank you for your interest in contributing to obsidian-cli! This document provides guidelines and
+instructions for contributing to the project.
 
 ## Development Setup
 
@@ -118,7 +119,6 @@ make all
 ## Testing
 
 1. Write tests for new functionality:
-
    - Integration tests in `tests/`
    - Unit tests in `tests/unit/`
 
@@ -181,4 +181,5 @@ All submissions require review. We use GitHub pull requests for this purpose.
 
 ## License
 
-By contributing your code, you agree to license your contribution under the same license as the project.
+By contributing your code, you agree to license your contribution under the same license as the
+project.

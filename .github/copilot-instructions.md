@@ -2,7 +2,8 @@
 
 # Project: Obsidian CLI
 
-This is a Python project that provides a command-line interface for interacting with Obsidian, a knowledge management application.
+This is a Python project that provides a command-line interface for interacting with Obsidian, a
+knowledge management application.
 
 ## Project Structure
 

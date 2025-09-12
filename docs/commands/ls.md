@@ -11,15 +11,16 @@ obsidian-cli --vault /path/to/vault --blacklist "Templates/:Archive/" ls
 
 ## Description
 
-The `ls` command prints the relative path of each `*.md` file found under the configured vault directory. Paths are printed one per line. Files in blacklisted directories are skipped.
+The `ls` command prints the relative path of each `*.md` file found under the configured vault
+directory. Paths are printed one per line. Files in blacklisted directories are skipped.
 
 ## Blacklist
 
-You can control which directories are excluded via a blacklist of path prefixes. Matching is prefix-based and case-sensitive.
+You can control which directories are excluded via a blacklist of path prefixes. Matching is
+prefix-based and case-sensitive.
 
 - Defaults: `Assets/`, `.obsidian/`, `.git/`
 - Configure via any of:
-
   - CLI: `--blacklist "Assets/:.obsidian/:.git/"`
   - Environment: `OBSIDIAN_BLACKLIST="Assets/:.obsidian/:.git/"`
   - Config file (obsidian-cli.toml):

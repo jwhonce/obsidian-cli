@@ -54,7 +54,8 @@ Immutable configuration class for obsidian-cli application settings.
 
 #### Fields
 
-- `blacklist` (list[str]): Directory patterns to ignore (default: `["Assets/", ".obsidian/", ".git/"]`)
+- `blacklist` (list[str]): Directory patterns to ignore (default:
+  `["Assets/", ".obsidian/", ".git/"]`)
 - `config_dirs` (list[Path]): Configuration file search paths
 - `editor` (Path): Default editor command (default: `Path("vi")`)
 - `ident_key` (str): Identifier key for frontmatter (default: `"uid"`)
@@ -346,17 +347,14 @@ BaseException
 ### Common Error Scenarios
 
 1. **File Not Found in Vault** (exit_code=11)
-
    - Raised by: `_resolve_path()`
    - Trigger: File doesn't exist in vault
 
 2. **Configuration File Missing** (exit_code=12)
-
    - Raised by: `Configuration._load_toml_config()`
    - Trigger: Config file not found
 
 3. **Configuration Parse Error** (exit_code=2)
-
    - Raised by: `Configuration._load_toml_config()`
    - Trigger: Invalid TOML syntax
 

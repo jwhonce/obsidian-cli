@@ -1,10 +1,12 @@
 # Error Handling in Obsidian CLI
 
-This document describes the error handling strategy and conventions used in the Obsidian CLI project.
+This document describes the error handling strategy and conventions used in the Obsidian CLI
+project.
 
 ## ObsidianFileError Class
 
-The `ObsidianFileError` class is a project-specific enhancement of `click.FileError` that provides improved handling of file-related errors with standardized exit codes.
+The `ObsidianFileError` class is a project-specific enhancement of `click.FileError` that provides
+improved handling of file-related errors with standardized exit codes.
 
 ### Class Definition
 
@@ -74,24 +76,23 @@ The Obsidian CLI uses a standardized set of exit codes to indicate different typ
 
 ### ObsidianFileError Exit Codes
 
-| Exit Code | Description                      | Usage                                             |
-| --------- | -------------------------------- | ------------------------------------------------- |
-| `11`      | File Resolution Error            | File not found in vault via `_resolve_path()`     |
-| `12`      | Configuration/General File Error | Default for configuration and general file errors |
+| Exit Code | Description                         | Usage                                               |
+| --------- | ----------------------------------- | --------------------------------------------------- |
+| `12`      | File Resolution/Configuration Error | Default for file not found and configuration errors |
 
 ### Exit Code Usage by Function
 
 #### `_resolve_path()` Function
 
-- **Exit Code**: `11`
+- **Exit Code**: `12`
 - **Usage**: When a file cannot be found in the Obsidian vault
 - **Example**: `obsidian-cli meta nonexistent-file`
 
 ```python
 raise ObsidianFileError(
     page_or_path,
-    f"Page or File not found in vault: {vault}",
-    exit_code=11
+    f"Page or File not found in vault: {vault}"
+    # Uses default exit_code=12
 )
 ```
 
@@ -160,7 +161,7 @@ def some_command(page_name: str, state: State):
 def test_file_not_found_error(self):
     """Test that file not found errors use correct exit code."""
     result = self.runner.invoke(cli, ["--vault", str(vault), "meta", "nonexistent"])
-    self.assertEqual(result.exit_code, 11)  # File resolution error
+    self.assertEqual(result.exit_code, 12)  # File resolution error
 
 def test_configuration_error(self):
     """Test that configuration errors use correct exit code."""
@@ -237,9 +238,8 @@ raise ObsidianFileError(path, "File not found", exit_code=12)
 # Old test expectation
 self.assertEqual(result.exit_code, 2)
 
-# New test expectation (depends on error type)
-self.assertEqual(result.exit_code, 11)  # For file resolution errors
-self.assertEqual(result.exit_code, 12)  # For configuration errors
+# New test expectation
+self.assertEqual(result.exit_code, 12)  # For both file resolution and configuration errors
 ```
 
 ## Troubleshooting

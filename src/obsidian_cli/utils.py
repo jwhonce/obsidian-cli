@@ -74,8 +74,7 @@ def _check_if_path_blacklisted(rel_path: Path, blacklist: list[str]) -> bool:
     Returns:
         bool: True if the path should be blacklisted, False otherwise.
     """
-    path_str = str(rel_path)
-    return any(path_str.startswith(pattern) for pattern in blacklist)
+    return any(str(rel_path).startswith(pattern) for pattern in blacklist)
 
 
 def _check_filename_match(file_stem: str, search_name: str, exact_match: bool) -> bool:
@@ -290,12 +289,12 @@ def _get_frontmatter(filename: Path) -> frontmatter.Post:
         frontmatter.Post: Object containing both metadata and content.
 
     Raises:
-        FileNotFoundError: When the file doesn't exist.
+        ObsidianFileError: When the file doesn't exist.
     """
     try:
         return frontmatter.load(filename)
-    except FileNotFoundError as e:
-        raise FileNotFoundError(e.errno, "Page or File does not exist.", filename) from None
+    except FileNotFoundError:
+        raise ObsidianFileError(filename, "Page or File does not exist.") from None
 
 
 def _get_journal_template_vars(date: datetime) -> dict[str, str | int]:
@@ -349,7 +348,7 @@ def _resolve_path(page_or_path: Path, vault: Path) -> Path:
         Path: The resolved absolute path to the file.
 
     Raises:
-        FileNotFoundError: When the file cannot be found at either location.
+        ObsidianFileError: When the file cannot be found at either location.
     """
     filename = page_or_path.with_suffix(".md")
     if filename.exists():

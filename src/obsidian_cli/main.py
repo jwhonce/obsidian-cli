@@ -553,13 +553,9 @@ def meta(
 ) -> None:
     """View or update frontmatter metadata in a file."""
     state: State = ctx.obj
-    filename = _resolve_path(page_or_path, state.vault)
 
-    try:
-        post = _get_frontmatter(filename)
-    except FileNotFoundError as e:
-        logger.error("File not found: %s", e)
-        raise typer.Exit(code=2) from e
+    filename = _resolve_path(page_or_path, state.vault)
+    post = _get_frontmatter(filename)
 
     try:
         # Process the metadata based on provided arguments

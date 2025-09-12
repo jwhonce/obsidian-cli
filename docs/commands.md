@@ -6,9 +6,13 @@ This document provides detailed information about all available commands in obsi
 
 All commands support these global options:
 
-- `--vault PATH` - Specify the vault directory (required if not in config)
-- `--config PATH` - Specify configuration file path
-- `--verbose` - Enable verbose output
+- `--vault PATH` - Specify the vault directory (required if not in config) [env var: OBSIDIAN_VAULT]
+- `--config TEXT` - Colon-separated list of configuration files to read from [env var:
+  OBSIDIAN_CONFIG_DIRS]
+- `--blacklist TEXT` - Colon-separated list of directories to ignore [env var: OBSIDIAN_BLACKLIST]
+- `--editor PATH` - Path for editor to use for editing journal entries [env var: EDITOR]
+- `--verbose, -v` - Enable verbose output
+- `--version` - Show version and exit
 - `--help` - Show help information
 
 ## Commands
@@ -165,7 +169,7 @@ obsidian-cli ls
 obsidian-cli ls
 ```
 
-### meta
+### meta (alias: frontmatter)
 
 View or update frontmatter metadata in a file.
 
@@ -325,7 +329,8 @@ obsidian-cli serve
 
 ## Configuration Integration
 
-All commands respect the configuration file settings. You can override any configuration value using command-line options:
+All commands respect the configuration file settings. You can override any configuration value using
+command-line options:
 
 ```bash
 # Override vault setting
@@ -341,6 +346,7 @@ Commands provide clear error messages and appropriate exit codes:
 
 - `0` - Success
 - `1` - General error (invalid arguments, configuration issues)
-- `2` - File not found or validation error
+- `2` - Misuse/Invalid usage (command line usage errors, handled by Click/Typer)
+- `12` - File not found or configuration errors
 
 Use `--verbose` flag for detailed error information and debugging.

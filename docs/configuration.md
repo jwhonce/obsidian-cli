@@ -6,11 +6,27 @@ This document explains how to configure obsidian-cli for your workflow.
 
 obsidian-cli searches for configuration files in this order:
 
-1. Path specified with `--config` option
+1. Path(s) specified with `--config` option or `OBSIDIAN_CONFIG_DIRS` environment variable
 2. `obsidian-cli.toml` in the current directory
 3. `~/.config/obsidian-cli/config.toml` (or `$XDG_CONFIG_HOME/obsidian-cli/config.toml`)
 
-If no configuration file is found, obsidian-cli uses default settings. In this case, you must specify the vault path using the `--vault` option.
+### Multiple Configuration Files
+
+You can specify multiple configuration files using the `--config` option or `OBSIDIAN_CONFIG_DIRS`
+environment variable with colon-separated paths. The first file found will be used, with subsequent
+files serving as fallbacks:
+
+```bash
+# Using command line option
+obsidian-cli --config "project.toml:~/.config/obsidian-cli/config.toml" ls
+
+# Using environment variable
+export OBSIDIAN_CONFIG_DIRS="project.toml:team.toml:~/.config/obsidian-cli/config.toml"
+obsidian-cli ls
+```
+
+If no configuration file is found, obsidian-cli uses default settings. In this case, you must
+specify the vault path using the `--vault` option.
 
 ## Configuration Format
 
@@ -40,8 +56,7 @@ verbose = false
 
 ### vault
 
-**Type:** String (path)
-**Required:** Yes (either in config or via `--vault` option)
+**Type:** String (path) **Required:** Yes (either in config or via `--vault` option)
 **Description:** Path to your Obsidian vault directory.
 
 ```toml
@@ -50,9 +65,8 @@ vault = "/Users/username/Documents/MyVault"
 
 ### editor
 
-**Type:** String
-**Default:** `"vi"`
-**Description:** Command to use for opening files with the `edit` command.
+**Type:** String **Default:** `"vi"` **Description:** Command to use for opening files with the
+`edit` command.
 
 ```toml
 # VS Code
@@ -74,9 +88,8 @@ editor = "xdg-open"  # Linux
 
 ### ident_key
 
-**Type:** String
-**Default:** `"uid"`
-**Description:** Frontmatter key used for unique identifiers by the `add-uid` command.
+**Type:** String **Default:** `"uid"` **Description:** Frontmatter key used for unique identifiers
+by the `add-uid` command.
 
 ```toml
 ident_key = "id"
@@ -88,9 +101,8 @@ ident_key = "note_id"
 
 ### blacklist
 
-**Type:** Array of strings
-**Default:** `["Assets/", ".obsidian/", ".git/"]`
-**Description:** Directories to exclude from `query`, `ls`, and other vault operations.
+**Type:** Array of strings **Default:** `["Assets/", ".obsidian/", ".git/"]` **Description:**
+Directories to exclude from `query`, `ls`, and other vault operations.
 
 ```toml
 blacklist = [
@@ -103,13 +115,14 @@ blacklist = [
 ]
 ```
 
-**Note:** For backward compatibility, the old `ignored_directories` key is still supported in configuration files but is deprecated. Please use `blacklist` for new configurations.
+**Note:** For backward compatibility, the old `ignored_directories` key is still supported in
+configuration files but is deprecated. Please use `blacklist` for new configurations.
 
 ### journal_template
 
-**Type:** String
-**Default:** `"Calendar/{year}/{month:02d}/{year}-{month:02d}-{day:02d}"`
-**Description:** Template for generating journal file paths. Supports various date formatting variables.
+**Type:** String **Default:** `"Calendar/{year}/{month:02d}/{year}-{month:02d}-{day:02d}"`
+**Description:** Template for generating journal file paths. Supports various date formatting
+variables.
 
 #### Template Variables
 
@@ -144,9 +157,7 @@ journal_template = "Journal/{weekday}-{year}-{month:02d}-{day:02d}"
 
 ### verbose
 
-**Type:** Boolean
-**Default:** `false`
-**Description:** Enable verbose output by default.
+**Type:** Boolean **Default:** `false` **Description:** Enable verbose output by default.
 
 ```toml
 verbose = true
@@ -157,6 +168,8 @@ verbose = true
 You can override configuration values using environment variables:
 
 - `OBSIDIAN_VAULT` - Override vault path
+- `OBSIDIAN_CONFIG_DIRS` - Colon-separated list of configuration files to read from (highest
+  precedence first)
 - `OBSIDIAN_BLACKLIST` - Override blacklist directories (colon-separated)
 - `EDITOR` - Override editor command
 - `XDG_CONFIG_HOME` - Change config directory location (Linux/macOS)
@@ -169,6 +182,10 @@ obsidian-cli ls
 # Override blacklist directories
 export OBSIDIAN_BLACKLIST="Assets/:Templates/:Archive/"
 obsidian-cli query tags --exists
+
+# Use multiple configuration files with precedence
+export OBSIDIAN_CONFIG_DIRS="project.toml:team.toml:~/.config/obsidian-cli/config.toml"
+obsidian-cli info
 
 # Use different editor
 export EDITOR="vim"
@@ -244,15 +261,12 @@ verbose = false
 ### Common Issues
 
 1. **"No vault specified"**
-
    - Add `vault` to your config file or use `--vault` option
 
 2. **"Configuration file not found"**
-
    - obsidian-cli will use defaults; this is normal if you haven't created a config file
 
 3. **"Invalid journal template"**
-
    - Check that your template uses valid variable names and format specifiers
 
 4. **"Editor command not found"**

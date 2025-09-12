@@ -1,6 +1,7 @@
 # Obsidian CLI
 
-A command-line interface for interacting with Obsidian vaults with AI assistant integration via Model Context Protocol (MCP).
+A command-line interface for interacting with Obsidian vaults with AI assistant integration via
+Model Context Protocol (MCP).
 
 [![Test Coverage](https://img.shields.io/badge/coverage-78%25-brightgreen.svg)](https://github.com/jhonce/obsidian-cli)
 [![Version](https://img.shields.io/badge/version-0.1.16-blue.svg)](https://github.com/jhonce/obsidian-cli)
@@ -24,7 +25,8 @@ pip install obsidian-cli
 
 ## Quick Start
 
-If no configuration file is found, obsidian-cli will use default settings. You'll need to specify the vault path:
+If no configuration file is found, obsidian-cli will use default settings. You'll need to specify
+the vault path:
 
 ```bash
 # List all notes in a vault
@@ -79,9 +81,7 @@ List markdown files in the vault.
 
 - **Description**: Prints the relative paths of all `*.md` files under the configured vault.
 - **Blacklist**: Respects blacklisted directory prefixes (e.g., `Assets/`, `.obsidian/`, `.git/`).
-
   - Configure via any of:
-
     - CLI: `--blacklist "Assets/:.obsidian/:.git/"`
     - Env: `OBSIDIAN_BLACKLIST="Assets/:.obsidian/:.git/"`
     - Config: `blacklist = ["Assets/", ".obsidian/", ".git/"]` in obsidian-cli.toml
@@ -92,16 +92,15 @@ List markdown files in the vault.
 Usage:
 
 - Basic listing
-
   - `obsidian-cli --vault /path/to/vault ls`
 
 - With custom blacklist
-
   - `obsidian-cli --vault /path/to/vault --blacklist "Templates/:Archive/" ls`
 
 Notes:
 
-- Matching is prefix-based and case-sensitive (e.g., `Assets/` matches `Assets/images.png`, but not `assets/`).
+- Matching is prefix-based and case-sensitive (e.g., `Assets/` matches `Assets/images.png`, but not
+  `assets/`).
 - Only Markdown files (`*.md`) are listed.
 
 See also: [docs/commands/ls.md](docs/commands/ls.md)
@@ -150,7 +149,9 @@ The journal template supports these variables:
 
 ## MCP Integration
 
-The `serve` command starts a Model Context Protocol server that exposes vault operations to AI assistants. This enables seamless integration with AI tools like Claude Desktop and other MCP-compatible systems.
+The `serve` command starts a Model Context Protocol server that exposes vault operations to AI
+assistants. This enables seamless integration with AI tools like Claude Desktop and other
+MCP-compatible systems.
 
 ### Available MCP Tools
 
