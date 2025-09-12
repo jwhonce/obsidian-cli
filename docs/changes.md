@@ -2,6 +2,68 @@
 
 This document lists the significant recent changes to obsidian-cli.
 
+## Version 0.1.19
+
+### Enhanced Features
+
+- **Comprehensive File Type Statistics**: MCP server now returns detailed statistics for all file types in the vault, not just markdown files
+  - Tracks count and total size for each file extension (.md, .json, .txt, .png, .pdf, etc.)
+  - Handles files without extensions as "no_extension" category
+  - Maintains backward compatibility with existing `markdown_files` field
+- **Improved File Size Display**: Fixed file size formatting in vault info output
+  - Displays appropriate units (bytes, KB, MB, GB) instead of always showing "0.00 MB"
+  - Accurate size calculation for small files
+
+### Performance Optimizations
+
+- **Optimized `_get_vault_info` Function**: Significantly improved performance for large vaults
+  - Single-pass file processing eliminates redundant filesystem operations
+  - Direct file type processing during iteration reduces memory usage
+  - Uses `contextlib.suppress()` for cleaner exception handling
+- **Reduced Processing Overhead**: File extension cleanup and categorization now happen during initial scan
+
+### Code Quality Improvements
+
+- **PEP 8 Compliance**: Formatted `mcp_server.py` to limit line length to <100 characters
+  - Split long f-strings and JSON schema definitions for better readability
+  - Improved function parameter formatting across multiple lines
+- **Import Organization**: Moved all imports to the top of files following Python best practices
+  - Resolved circular import issues between `mcp_server.py` and `main.py`
+  - Maintained proper import ordering (standard library, third-party, local imports)
+- **Method Organization**: Sorted method names alphabetically in both `utils.py` and `mcp_server.py`
+  - Improved code maintainability and navigation
+  - Consistent ordering ignores leading underscores for private functions
+
+### Testing Improvements
+
+- **Fixed Hanging Tests**: Resolved infinite loop issues in MCP server comprehensive tests
+  - Modified `serve_mcp` tests to verify function properties without executing the server
+  - Corrected mock patch targets for proper test isolation
+- **Enhanced Test Coverage**: Added comprehensive tests for new file type statistics functionality
+  - Tests validate diverse file types including edge cases (files without extensions)
+  - Verification of size calculation accuracy across different file sizes
+
+### Bug Fixes
+
+- **File Size Calculation**: Fixed display of file sizes that were previously showing as 0
+  - Proper handling of small files with accurate byte-level precision
+  - Consistent size reporting across all file types
+- **Exception Handling**: Improved error handling with `contextlib.suppress()` for file operations
+  - Graceful handling of file access issues during vault scanning
+  - Prevents crashes when encountering inaccessible files or directories
+
+### Backward Compatibility
+
+- **Maintained API Compatibility**: All existing MCP server tool interfaces remain unchanged
+- **Legacy Support**: Existing `markdown_files` field preserved in vault info output
+- **Configuration Compatibility**: No changes required to existing configuration files
+
+### Developer Experience
+
+- **Improved Code Documentation**: Enhanced inline comments and function documentation
+- **Better Error Messages**: More descriptive error handling for common issues
+- **Consistent Code Style**: Applied uniform formatting standards across the codebase
+
 ## Version 0.1.14
 
 ### Added

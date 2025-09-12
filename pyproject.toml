@@ -1,10 +1,10 @@
 [build-system]
-requires      = ["setuptools>=42", "wheel"]
+requires = ["setuptools>=42", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "obsidian-cli"
-version = "0.1.18"
+version = "0.1.19"
 description = "CLI tool for interacting with Obsidian vaults, featuring AI assistant integration via MCP server"
 readme = "README.md"
 authors = [{ name = "Obsidian CLI Team", email = "jwhonce@gmail.com" }]
@@ -43,8 +43,8 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage      = "https://github.com/jwhonce/obsidian-cli"
-Issues        = "https://github.com/jwhonce/obsidian-cli/issues"
+Homepage = "https://github.com/jwhonce/obsidian-cli"
+Issues = "https://github.com/jwhonce/obsidian-cli/issues"
 Documentation = "https://github.com/jwhonce/obsidian-cli/tree/main/docs"
 
 [project.scripts]
@@ -58,7 +58,7 @@ where = ["src"]
 
 [tool.ruff]
 # Ruff configuration
-line-length    = 100
+line-length = 100
 target-version = "py311"
 
 # Exclude a variety of commonly ignored directories.

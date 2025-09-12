@@ -132,22 +132,45 @@ Retrieves the content of specific notes with optional frontmatter inclusion.
 
 ### 4. get_vault_info
 
-Provides comprehensive information about the vault structure and statistics.
+Provides comprehensive information about the vault structure and detailed file statistics.
 
 **Parameters:** None required
 
 **Returns:**
 
-- Total note count
-- Vault path and configuration
-- Recent activity summary
-- Directory structure overview
+- **File Type Statistics**: Detailed breakdown of all file types in the vault
+  - Count and total size for each file extension (.md, .json, .txt, .png, .pdf, etc.)
+  - Files without extensions categorized as "no_extension"
+  - Size displayed in appropriate units (bytes, KB, MB, GB)
+- **Vault Overview**: Total file count, directory count, and vault path
+- **Configuration Details**: Editor, blacklist patterns, journal template settings
+- **Backward Compatibility**: Maintains `markdown_files` count for existing integrations
+
+**Example Output:**
+```
+Obsidian Vault Information:
+- Path: /Users/username/Documents/MyVault
+- Total files: 127
+- Total directories: 15
+- File Types by Extension:
+  - md: 89 files (2.1 MB)
+  - png: 12 files (3.4 MB)
+  - pdf: 8 files (15.2 MB)
+  - json: 5 files (24.3 KB)
+  - txt: 7 files (18.7 KB)
+  - no_extension: 6 files (4.1 KB)
+- Editor: code
+- Blacklist: .obsidian/, Assets/, Archive/
+- Journal template: Calendar/{year}/{month:02d}/{year}-{month:02d}-{day:02d}
+```
 
 **Use Cases:**
 
-- Vault health monitoring
-- Statistical analysis of note-taking patterns
-- Configuration verification
+- **Vault Analytics**: Comprehensive analysis of content types and storage usage
+- **Storage Optimization**: Identify large files and optimize vault organization
+- **Content Overview**: Understanding the composition of your knowledge base
+- **Migration Planning**: Assess vault structure before reorganization
+- **Backup Strategy**: Plan backups based on file type distribution and sizes
 
 ## Configuration
 
