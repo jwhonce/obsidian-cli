@@ -10,7 +10,6 @@ from unittest.mock import MagicMock, patch
 
 import typer
 
-from obsidian_cli.main import State
 from obsidian_cli.mcp_server import (
     handle_create_note,
     handle_find_notes,
@@ -18,6 +17,7 @@ from obsidian_cli.mcp_server import (
     handle_get_vault_info,
     serve_mcp,
 )
+from obsidian_cli.types import State
 
 
 class TestMCPServerComprehensive(unittest.TestCase):

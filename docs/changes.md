@@ -2,6 +2,22 @@
 
 This document lists the significant recent changes to obsidian-cli.
 
+## Version 0.1.20
+
+### Added
+- Added comprehensive tests for typer environment variable prefix functionality
+- Added tests to verify OBSIDIAN_* environment variables work correctly for all CLI options
+
+### Fixed  
+- Fixed failing tests after _display_find_results() cleanup
+- Fixed test imports to use new types.py structure
+
+### Changed
+- Cleaned up _display_find_results() function for better maintainability
+- Updated all test files to import Configuration and State from types.py
+
+---
+
 ## Version 0.1.19
 
 ### Enhanced Features

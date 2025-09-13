@@ -44,9 +44,9 @@ def run_specific_tests():
 def validate_imports():
     """Validate that all required imports are available."""
     try:
-        from obsidian_cli.configuration import Configuration
         from obsidian_cli.exceptions import ObsidianFileError
-        from obsidian_cli.main import State, cli, main
+        from obsidian_cli.main import cli, main
+        from obsidian_cli.types import Configuration, State
         from obsidian_cli.utils import _get_vault_info
 
         print("✓ All imports successful")

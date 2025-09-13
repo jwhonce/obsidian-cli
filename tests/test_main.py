@@ -9,8 +9,8 @@ from unittest.mock import patch
 import frontmatter
 from typer.testing import CliRunner
 
-from obsidian_cli.configuration import Configuration
-from obsidian_cli.main import State, _check_if_path_blacklisted, cli
+from obsidian_cli.main import _check_if_path_blacklisted, cli
+from obsidian_cli.types import Configuration, State
 
 
 class TestMain(unittest.TestCase):
@@ -353,7 +353,7 @@ blacklist = ["temp/", "cache/"]
     def test_vault_required_error(self):
         """Test that missing vault path triggers proper error handling."""
         # Mock Configuration to return None vault
-        with patch("obsidian_cli.configuration.Configuration.from_path") as mock_config:
+        with patch("obsidian_cli.types.Configuration.from_path") as mock_config:
             mock_config.return_value = (False, Configuration(vault=None))
 
             result = self.runner.invoke(cli, ["info"])
@@ -461,7 +461,7 @@ blacklist = ["temp/", "cache/"]
         """Create a State object for testing with correct parameter names."""
         from pathlib import Path
 
-        from obsidian_cli.main import State
+        from obsidian_cli.types import State
 
         defaults = {
             "editor": Path("vi"),
@@ -496,8 +496,7 @@ blacklist = ["temp/", "cache/"]
 
     def test_blacklist_functionality_comprehensive(self):
         """Comprehensive test to verify blacklist functionality works correctly."""
-        from obsidian_cli.configuration import Configuration
-        from obsidian_cli.main import State
+        from obsidian_cli.types import Configuration, State
 
         # Test blacklist function
         blacklist = ["Assets/", ".obsidian/", ".git/"]
@@ -526,7 +525,7 @@ blacklist = ["temp/", "cache/"]
 
     def test_configuration_backward_compatibility(self):
         """Test that old 'ignored_directories' config still works."""
-        from obsidian_cli.configuration import Configuration
+        from obsidian_cli.types import Configuration
 
         # Simulate loading config with old 'ignored_directories' key
         test_config_data = {

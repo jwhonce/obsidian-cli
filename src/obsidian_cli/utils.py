@@ -3,7 +3,7 @@ from collections import defaultdict
 from contextlib import suppress
 from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 import frontmatter
 import humanize
@@ -14,9 +14,7 @@ from rich.padding import Padding
 from rich.table import Table
 
 from .exceptions import ObsidianFileError
-
-if TYPE_CHECKING:
-    from .main import State
+from .types import State
 
 
 def _check_filename_match(file_path: Path, search_name: str, exact_match: bool) -> bool:
@@ -89,18 +87,18 @@ def _display_find_results(matches: list[Path], page_name: str, verbose: bool, va
         None: Results are printed directly to stdout.
     """
     if not matches:
-        typer.secho(f"No files found matching '{page_name}'", err=True, fg=typer.colors.RED)
-    else:
-        for match in sorted(matches):
-            typer.echo(match)
+        typer.secho(f"No files found matching '{page_name}'", err=True, fg="red")
+        return
 
-            # Show frontmatter title if verbose and it exists
-            if verbose:
-                with suppress(Exception):
-                    path = vault / match
-                    post = _get_frontmatter(path)
-                    if "title" in post.metadata:
-                        typer.echo(f"  title: {post.metadata['title']}")
+    for match in sorted(matches):
+        typer.echo(match)
+
+        # Show frontmatter title if verbose and it exists
+        if verbose:
+            with suppress(Exception):
+                post = _get_frontmatter(vault / match)
+                if "title" in post.metadata:
+                    typer.echo(f"  title: {post.metadata['title']}")
 
 
 def _display_metadata_key(post: frontmatter.Post, key: str) -> None:
@@ -366,7 +364,7 @@ def _get_journal_template_vars(date: datetime) -> dict[str, str | int]:
     }
 
 
-def _get_vault_info(state: "State") -> dict[str, Any]:
+def _get_vault_info(state: State) -> dict[str, Any]:
     """Get vault information as structured data.
 
     Args:

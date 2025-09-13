@@ -4,7 +4,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from obsidian_cli.main import State
+from obsidian_cli.types import State
 
 
 class TestMCPServerComponents(unittest.TestCase):

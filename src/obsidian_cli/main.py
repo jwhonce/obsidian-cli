@@ -81,7 +81,7 @@ Configuration:
     - {weekday_abbr}: Abbreviated weekday (e.g., Mon)
 
 Author: Jhon Honce / Copilot enablement
-Version: 0.1.19
+Version: 0.1.20
 License: Apache License 2.0
 """
 
@@ -94,7 +94,6 @@ import tomllib
 import traceback
 import uuid
 from asyncio import CancelledError
-from dataclasses import dataclass
 from datetime import datetime
 from enum import StrEnum
 from pathlib import Path
@@ -105,11 +104,10 @@ import click
 import frontmatter  # type: ignore[import-untyped]
 import typer
 from mdutils.mdutils import MdUtils  # type: ignore[import-untyped]
-from typing_extensions import Doc
 
-from .configuration import Configuration
 from .exceptions import ObsidianFileError
 from .mcp_server import serve_mcp
+from .types import PAGE_FILE, Configuration, State
 from .utils import (
     _check_if_path_blacklisted,
     _display_find_results,
@@ -133,15 +131,18 @@ except Exception:  # pylint: disable=broad-except
     try:
         from . import __version__
     except Exception:  # pylint: disable=broad-except
-        __version__ = "0.1.19"  # Fallback version
+        __version__ = "0.1.20"  # Fallback version
 
 
 # Initialize Typer app
 cli = typer.Typer(
     add_completion=False,
+    context_settings={
+        "auto_envvar_prefix": "OBSIDIAN",
+        "max_content_width": get_terminal_size().columns,
+    },
     help="Command-line interface for interacting with Obsidian.",
     no_args_is_help=True,
-    context_settings={"max_content_width": get_terminal_size().columns},
 )
 
 
@@ -152,26 +153,12 @@ def _version(value: bool) -> None:
         raise typer.Exit()
 
 
-@dataclass(frozen=True)
-class State:
-    """Record running state for obsidian-cli application."""
-
-    blacklist: list[str]
-    config_dirs: list[str]
-    editor: Path
-    ident_key: str
-    journal_template: str
-    vault: Path
-    verbose: bool
-
-
 @cli.callback()
 def main(
     ctx: typer.Context,
     vault: Annotated[
         Optional[Path],
         typer.Option(
-            envvar="OBSIDIAN_VAULT",
             help="Path to the Obsidian vault",
         ),
     ] = None,
@@ -186,7 +173,6 @@ def main(
         Optional[str],
         typer.Option(
             "--blacklist",
-            envvar="OBSIDIAN_BLACKLIST",
             help=(
                 "Colon-separated list of directories to ignore. [default: Assets/:.obsidian/:.git/]"
             ),
@@ -217,6 +203,7 @@ def main(
             callback=_version,
             is_eager=True,
             help="Show version and exit.",
+            envvar="",
         ),
     ] = None,
 ) -> None:
@@ -300,11 +287,6 @@ def main(
         verbose=verbose,
     )
 
-
-PAGE_FILE = Annotated[
-    Annotated[Path, typer.Argument(help="Obsidian page name or Path to file")],
-    Doc("Obsidian page name or Path to markdown file."),
-]
 
 # CLI Commands (alphabetical order)
 
@@ -444,14 +426,15 @@ def find(
         typer.echo(f"Searching for page: '{page_name}'")
         typer.echo(f"Exact match: {exact_match}")
 
-    # Convert page_name to lowercase for case-insensitive search if not exact match
+    # Normalize search name
     search_name = page_name if exact_match else page_name.lower()
 
-    # Find matches
     matches = _find_matching_files(state.vault, search_name, exact_match)
+    if matches:
+        _display_find_results(matches, page_name, state.verbose, state.vault)
+        return
 
-    # Display results
-    _display_find_results(matches, page_name, state.verbose, state.vault)
+    typer.secho(f"No files found matching '{page_name}'", err=True, fg=typer.colors.YELLOW)
 
 
 @cli.command()
@@ -460,7 +443,6 @@ def info(ctx: typer.Context) -> None:
     state: State = ctx.obj
 
     vault_info = _get_vault_info(state)
-
     if not vault_info["exists"]:
         typer.secho(
             f"Error getting vault info: {vault_info['error']}", err=True, fg=typer.colors.RED
@@ -483,10 +465,9 @@ def journal(
     ] = None,
 ) -> None:
     """Open a journal entry in the Obsidian Vault."""
-    # If --date is provided, open that date's entry (YYYY-MM-DD). Otherwise, open today's entry.
     state: State = ctx.obj
 
-    # Determine target date
+    # If --date is provided, open that date's entry (YYYY-MM-DD). Otherwise, open today's entry.
     if date is None:
         dt = datetime.now()
     else:
@@ -499,7 +480,6 @@ def journal(
 
     # Build template variables from target date
     template_vars = _get_journal_template_vars(dt)
-
     try:
         journal_path_str = state.journal_template.format(**template_vars)
         page_path = Path(journal_path_str).with_suffix(".md")
@@ -595,16 +575,15 @@ def new(
     """Create a new file in the Obsidian Vault."""
     state: State = ctx.obj
 
-    # For new files, we check if it exists first, but don't use _resolve_path
-    # since we expect the file to not exist yet
+    # We don't use _resolve_path() here since we expect the file to not exist yet
     filename = state.vault / page_or_path.with_suffix(".md")
     if filename.exists():
-        if force:
-            if state.verbose:
-                typer.echo(f"Overwriting existing file: {filename}")
-        else:
+        if not force:
             typer.secho(f"File already exists: {filename}", err=True, fg=typer.colors.RED)
             raise typer.Exit(code=1)
+
+        if state.verbose:
+            typer.echo(f"Overwriting existing file: {filename}")
 
     # Create parent directories if they don't exist
     try:
@@ -641,16 +620,15 @@ def new(
     post["title"] = title
     post[state.ident_key] = str(uuid.uuid4())
 
-    # Write file to disk
     try:
         with open(filename, "w", encoding="utf-8") as f:
             f.write(frontmatter.dumps(post) + "\n\n")
-
-        if state.verbose:
-            typer.echo(f"Created new file: {filename}")
     except OSError as e:
         typer.secho(f"Error writing file '{filename}': {e}", err=True, fg=typer.colors.RED)
         raise typer.Exit(code=1) from None
+
+    if state.verbose:
+        typer.echo(f"Created new file: {filename}")
 
     # Open file in editor (if not using stdin input)
     if sys.stdin.isatty():
@@ -839,6 +817,7 @@ def rm(
 ) -> None:
     """Remove a file from the Obsidian Vault."""
     state: State = ctx.obj
+
     filename = _resolve_path(page_or_path, state.vault)
 
     # Skip confirmation if force is True, otherwise ask for confirmation
@@ -847,12 +826,13 @@ def rm(
         return
 
     try:
-        # Remove the file
         filename.unlink()
-        typer.echo(f"File removed: {filename}")
     except Exception as e:
         typer.secho(f"Error removing file: {e}", err=True, fg=typer.colors.RED)
         raise typer.Exit(code=1) from None
+
+    if state.verbose:
+        typer.echo(f"File removed: {filename}")
 
 
 @cli.command()

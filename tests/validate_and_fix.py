@@ -39,9 +39,9 @@ def validate_test_environment():
 
     # Check obsidian-cli imports
     try:
-        from obsidian_cli.configuration import Configuration
         from obsidian_cli.exceptions import ObsidianFileError
         from obsidian_cli.main import cli
+        from obsidian_cli.types import Configuration
 
         print("✓ obsidian-cli modules")
     except ImportError as e:

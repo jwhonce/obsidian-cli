@@ -11,7 +11,7 @@ from unittest.mock import MagicMock, patch
 
 import frontmatter
 
-from obsidian_cli.main import State
+from obsidian_cli.types import State
 
 
 class TestMCPServerUnit(unittest.TestCase):

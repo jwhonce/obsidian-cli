@@ -59,7 +59,7 @@ make dev
 After installation, you can verify that the tool was installed correctly:
 
 ```bash
-# Check version (should show v0.1.19)
+# Check version (should show v0.1.20)
 obsidian-cli --version
 
 # Verify core functionality
@@ -85,7 +85,7 @@ obsidian-cli --vault /tmp/test-vault serve --help
 make coverage  # if installed from source
 ```
 
-This should display version 0.1.19 and show no errors.
+This should display version 0.1.20 and show no errors.
 
 ## Configuration After Installation
 

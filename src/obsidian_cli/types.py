@@ -1,14 +1,27 @@
-"""Configuration management for obsidian-cli application."""
+"""Common types and type definitions for Obsidian CLI.
 
+This module contains shared type definitions that are used across multiple modules
+to avoid circular imports and code duplication.
+"""
+
+from functools import partial
+import functools
 import tomllib
 from contextlib import suppress
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Optional, Tuple
+from typing import Annotated, Any, Optional, Tuple
 
 import typer
+from typing_extensions import Doc
 
 from .exceptions import ObsidianFileError
+
+# Common type for page/file arguments used across commands
+PAGE_FILE = Annotated[
+    Annotated[Path, typer.Argument(help="Obsidian page name or Path to file")],
+    Doc("Obsidian page name or Path to markdown file."),
+]
 
 
 @dataclass(frozen=True)
@@ -152,3 +165,16 @@ class Configuration:
             raise
         except FileNotFoundError as e:
             raise ObsidianFileError(path, "Configuration file not found") from e
+
+
+@dataclass(frozen=True)
+class State:
+    """Record running state for obsidian-cli application."""
+
+    blacklist: list[str]
+    config_dirs: list[str]
+    editor: Path
+    ident_key: str
+    journal_template: str
+    vault: Path
+    verbose: bool
