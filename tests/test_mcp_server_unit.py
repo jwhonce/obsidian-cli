@@ -24,6 +24,7 @@ class TestMCPServerUnit(unittest.TestCase):
             editor=Path("vim"),
             ident_key="uid",
             blacklist=["Assets/", ".obsidian/"],
+            config_dirs=["test.toml"],
             journal_template="Daily/{year}/{month:02d}/{day:02d}",
             vault=self.vault_path,
             verbose=False,

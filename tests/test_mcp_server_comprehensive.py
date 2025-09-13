@@ -33,6 +33,7 @@ class TestMCPServerComprehensive(unittest.TestCase):
             editor=Path("vi"),
             ident_key="uid",
             blacklist=["Assets/", ".obsidian/"],
+            config_dirs=["test.toml"],
             journal_template="Calendar/{year}/{month:02d}/{year}-{month:02d}-{day:02d}",
             vault=self.vault_path,
             verbose=False,
@@ -283,14 +284,18 @@ This is the content.""")
             self.assertIn(str(self.vault_path), result[0].text)
             self.assertIn("Editor: vi", result[0].text)
 
+            # Check that usage information is included
+            self.assertIn("Usage files:", result[0].text)
+            self.assertIn("Usage directories:", result[0].text)
+
             # Check that file type statistics are included
             self.assertIn("File Types by Extension:", result[0].text)
-            self.assertIn("md: 2 files", result[0].text)  # 2 markdown files
-            self.assertIn("txt: 1 files", result[0].text)  # 1 text file
-            self.assertIn("json: 1 files", result[0].text)  # 1 JSON file
-            self.assertIn("png: 1 files", result[0].text)  # 1 PNG file
-            # Check that sizes are shown with appropriate units (should be bytes for small files)
-            self.assertIn("bytes", result[0].text)
+            self.assertIn("- md: 2 files", result[0].text)  # 2 markdown files
+            self.assertIn("- txt: 1 files", result[0].text)  # 1 text file
+            self.assertIn("- json: 1 files", result[0].text)  # 1 JSON file
+            self.assertIn("- png: 1 files", result[0].text)  # 1 PNG file
+            # Check that sizes are shown with appropriate units (should be Bytes for small files)
+            self.assertIn("Bytes", result[0].text)
 
         asyncio.run(run_test())
 
@@ -305,6 +310,7 @@ This is the content.""")
                 editor=Path("vi"),
                 ident_key="uid",
                 blacklist=[],
+                config_dirs=["test.toml"],
                 journal_template="test",
                 vault=Path("/nonexistent/path"),
                 verbose=False,

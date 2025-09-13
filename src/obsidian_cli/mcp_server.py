@@ -15,7 +15,7 @@ from unittest.mock import patch
 import typer
 
 from . import __version__
-from .utils import _get_vault_info
+from .utils import _format_file_size, _get_vault_info
 
 # MCP imports with error handling
 try:
@@ -240,19 +240,7 @@ async def handle_get_vault_info(ctx: typer.Context, state, args: dict) -> list:
         if "file_type_stats" in vault_info and vault_info["file_type_stats"]:
             file_type_section = "\n- File Types by Extension:\n"
             for ext, stats in sorted(vault_info["file_type_stats"].items()):
-                # Format size with appropriate units
-                size = stats["total_size"]
-                if size == 0:
-                    size_str = "0 bytes"
-                elif size < 1024:
-                    size_str = f"{size} bytes"
-                elif size < 1024 * 1024:
-                    size_str = f"{size / 1024:.1f} KB"
-                elif size < 1024 * 1024 * 1024:
-                    size_str = f"{size / (1024 * 1024):.1f} MB"
-                else:
-                    size_str = f"{size / (1024 * 1024 * 1024):.1f} GB"
-
+                size_str = _format_file_size(stats["total_size"])
                 file_type_section += f"  - {ext}: {stats['count']} files ({size_str})\n"
         else:
             file_type_section = "\n- File Types: No files found\n"
@@ -261,10 +249,13 @@ async def handle_get_vault_info(ctx: typer.Context, state, args: dict) -> list:
             f"Obsidian Vault Information:\n"
             f"- Path: {vault_info['vault_path']}\n"
             f"- Total files: {vault_info['total_files']}\n"
+            f"- Usage files: {_format_file_size(vault_info['usage_files'])}\n"
             f"- Total directories: {vault_info['total_directories']}"
+            f"- Usage directories: {_format_file_size(vault_info['usage_directories'])}\n"
             f"{file_type_section}"
             f"- Editor: {vault_info['editor']}\n"
-            f"- Blacklist: {', '.join(vault_info['blacklist'])}\n"
+            f"- Blacklist: {vault_info['blacklist']}\n"
+            f"- Config Dirs: {vault_info['config_dirs']}\n"
             f"- Journal template: {vault_info['journal_template']}\n"
             f"- Version: {vault_info['version']}\n"
         )

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import os
 import tomllib
 from collections import defaultdict
 from contextlib import suppress
@@ -11,10 +10,12 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Optional, Tuple, Union
 
 import frontmatter
+import humanize
 import typer
 from click import FileError
 from rich.console import Console
 from rich.markup import escape
+from rich.padding import Padding
 from rich.table import Table
 
 if TYPE_CHECKING:
@@ -293,6 +294,107 @@ def _get_frontmatter(filename: Path) -> frontmatter.Post:
         raise ObsidianFileError(filename, "Page or File does not exist.") from None
 
 
+def _display_vault_info(vault_info: dict[str, Any]) -> None:
+    """Display vault information using Rich formatting.
+
+    Args:
+        vault_info: Dictionary containing vault information from _get_vault_info()
+    """
+    console = Console()
+
+    # Title
+    console.print("\n[bold blue]Obsidian Vault Information[/bold blue]\n")
+
+    # Vault Summary Table
+    summary_table = Table(
+        title="[bold]Vault Summary[/bold]",
+        show_header=False,
+        box=None,
+        padding=(0, 1),
+        title_justify="left",
+    )
+    summary_table.add_column("Property", style="cyan", width=20)
+    summary_table.add_column("Value", style="black")
+
+    summary_table.add_row("Path", vault_info["vault_path"])
+    summary_table.add_row("Total Directories", str(vault_info["total_directories"]))
+
+    console.print(summary_table)
+    console.print()
+
+    # File Types Table
+    if vault_info.get("file_type_stats"):
+        # Print title without padding (hangs left of table)
+        console.print("[bold]Vault File Types by Extension[/bold]")
+
+        file_table = Table(show_header=True, header_style="bold magenta", border_style="blue")
+        file_table.add_column("Extension", style="green", width=15)
+        file_table.add_column("Count", justify="right", style="yellow", width=10)
+        file_table.add_column("Size", justify="right", style="cyan", width=12)
+        file_table.add_column("Percentage", justify="right", style="black", width=12)
+
+        total_files = vault_info["total_files"]
+        for ext, stats in sorted(vault_info["file_type_stats"].items()):
+            ext_display = ext if ext != "." else "(no extension)"
+            size_str = _format_file_size(stats["total_size"])
+            count = stats["count"]
+            percentage = f"{(count / total_files * 100):.1f}%" if total_files > 0 else "0.0%"
+
+            file_table.add_row(ext_display, str(count), size_str, percentage)
+
+        # Add totals row
+        if vault_info["file_type_stats"]:
+            file_table.add_section()  # Add separator line
+            total_size_str = _format_file_size(vault_info["usage_files"])
+            file_table.add_row(
+                "[bold]TOTAL[/bold]",
+                f"[bold]{vault_info['total_files']}[/bold]",
+                f"[bold]{total_size_str}[/bold]",
+                "[bold]100.0%[/bold]",
+            )
+
+        console.print(Padding(file_table, (0, 0, 0, 1)))
+        console.print()
+    else:
+        console.print("[yellow]No files found in vault[/yellow]\n")
+
+    # Configuration Table
+    config_table = Table(
+        title="[bold]Configuration Details[/bold]",
+        show_header=False,
+        box=None,
+        padding=(0, 1),
+        title_justify="left",
+    )
+
+    config_table.add_column("Setting", style="cyan", width=20)
+    config_table.add_column("Value", style="black", no_wrap=False)
+
+    config_table.add_row("Vault Blacklist", vault_info["blacklist"])
+    config_table.add_row("Config Dirs", vault_info["config_dirs"])
+    config_table.add_row("Editor", str(vault_info["editor"]))
+
+    journal_info = f"{vault_info['journal_template']} => [cyan]{vault_info['journal_path']}[/cyan]"
+    config_table.add_row("Journal Template", journal_info)
+    config_table.add_row("Verbose", "Yes" if vault_info["verbose"] else "No")
+    config_table.add_row("Version", vault_info["version"])
+
+    console.print(config_table)
+    console.print()
+
+
+def _format_file_size(size_bytes: int) -> str:
+    """Format file size in human-readable format.
+
+    Args:
+        size_bytes: Size in bytes
+
+    Returns:
+        Human-readable size string (e.g., "1.5 KB", "2.3 MB")
+    """
+    return humanize.naturalsize(size_bytes)
+
+
 def _get_journal_template_vars(date: datetime) -> dict[str, str | int]:
     """Get template variables for journal path formatting.
 
@@ -333,15 +435,33 @@ def _get_vault_info(state: "State") -> dict[str, Any]:
         }
 
     def _walk_vault(path: Path):
-        """Recursively walks a directory and yields Path objects for directories and files."""
+        """Recursively walks a directory and yields Path objects for directories and files,
+        respecting the configured blacklist."""
         yield path
 
         for entry in path.iterdir():
+            # Get relative path for blacklist checking
+            rel_path = entry.relative_to(vault_path)
+
+            # Check if this path or any parent path is blacklisted
+            # For directories, also check if the directory itself matches a blacklist pattern
+            is_blacklisted = _check_if_path_blacklisted(rel_path, state.blacklist)
+            if not is_blacklisted and entry.is_dir():
+                # For directories, also check if adding a trailing slash matches any pattern
+                dir_path_with_slash = str(rel_path) + "/"
+                is_blacklisted = any(
+                    dir_path_with_slash.startswith(pattern) for pattern in state.blacklist
+                )
+
+            # Skip blacklisted paths
+            if is_blacklisted:
+                continue
+
             if entry.is_dir():
-                # Recursively call for subdirectories
+                # Recursively call for subdirectories (only if not blacklisted)
                 yield from _walk_vault(entry)
             else:
-                # Yield file Path object
+                # Yield file Path object (only if not blacklisted)
                 yield entry
 
     summary: dict[str, dict[str, int]] = defaultdict(lambda: {"count": 0, "total_size": 0})
@@ -356,7 +476,7 @@ def _get_vault_info(state: "State") -> dict[str, Any]:
         elif entry.is_file():
             summary["files"]["count"] += 1
 
-            suffix = (entry.suffix or "no_extension").lstrip(".")
+            suffix = entry.suffix.lstrip(".") if entry.suffix else "."
             file_type_stats[suffix]["count"] += 1
             with suppress(Exception):
                 st_size = entry.lstat().st_size
@@ -368,17 +488,20 @@ def _get_vault_info(state: "State") -> dict[str, Any]:
     journal_path_str = state.journal_template.format(**template_vars)
 
     return {
-        "blacklist": state.blacklist,
+        "blacklist": ":".join(state.blacklist),
+        "config_dirs": ":".join(state.config_dirs),
         "editor": state.editor,
         "exists": True,
+        "file_type_stats": file_type_stats,
         "journal_path": journal_path_str,
         "journal_template": state.journal_template,
         "markdown_files": file_type_stats.get("md", {}).get(
             "count", 0
         ),  # Keep for backward compatibility
-        "file_type_stats": file_type_stats,
         "total_directories": summary["directories"]["count"],
         "total_files": summary["files"]["count"],
+        "usage_directories": summary["directories"]["total_size"],
+        "usage_files": summary["files"]["total_size"],
         "vault_path": str(vault_path),
         "verbose": state.verbose,
         "version": __version__,
@@ -474,18 +597,12 @@ class Configuration:
     Note: This class assumes logging is not configured.
     """
 
-    # TODO: Is typer.echo(f"{typer.get_app_dir('obsidian-cli')}") a better way to
-    #   determine config path?
-
     blacklist: list[str] = field(default_factory=lambda: ["Assets/", ".obsidian/", ".git/"])
-    config_dirs: list[Path] = field(
+    config_dirs: list[str] = field(
         default_factory=lambda: [
-            Path("obsidian-cli.toml"),
-            (
-                Path(os.environ.get("XDG_CONFIG_HOME", "~/.config")).expanduser()
-                / "obsidian-cli"
-                / "config.toml"
-            ),
+            "obsidian-cli.toml",
+            str(Path(typer.get_app_dir("obsidian-cli")) / "config.toml"),
+            str(Path.home() / ".config" / "obsidian-cli" / "config.toml"),
         ]
     )
     editor: Path = field(default_factory=lambda: Path("vi"))
@@ -503,7 +620,11 @@ class Configuration:
         """Load configuration from a TOML file or colon-separated list of files.
 
         Returns:
-            Tuple[bool, Configuration]: (True if config was read from file, False if using defaults, Configuration)
+            Tuple[bool, Configuration]: (
+                True if config was read from file,
+                False if using defaults,
+                Configuration
+            )
         """
 
         # Initialize default configuration
@@ -526,12 +647,10 @@ class Configuration:
         else:
             # Search default locations
             for entry in default.config_dirs:
-                try:
-                    config_data = cls._load_toml_config(entry, verbose)
+                with suppress(ObsidianFileError):
+                    config_data = cls._load_toml_config(Path(entry), verbose)
                     config_found = True
                     break
-                except ObsidianFileError:
-                    continue
 
         return (
             config_found,
@@ -573,4 +692,3 @@ class Configuration:
         except tomllib.TOMLDecodeError as e:
             typer.secho(f"Error parsing {path}: {e}", err=True, fg=typer.colors.RED)
             raise
-        return None

@@ -102,6 +102,7 @@ from pathlib import Path
 from shutil import get_terminal_size
 from typing import Annotated, Optional
 
+import click
 import frontmatter  # type: ignore[import-untyped]
 import typer
 from mdutils.mdutils import MdUtils  # type: ignore[import-untyped]
@@ -115,6 +116,7 @@ from .utils import (
     _display_find_results,
     _display_metadata_key,
     _display_query_results,
+    _display_vault_info,
     _find_matching_files,
     _get_frontmatter,
     _get_journal_template_vars,
@@ -156,9 +158,10 @@ def _version(value: bool) -> None:
 class State:
     """Record running state for obsidian-cli application."""
 
+    blacklist: list[str]
+    config_dirs: list[str]
     editor: Path
     ident_key: str
-    blacklist: list[str]
     journal_template: str
     vault: Path
     verbose: bool
@@ -234,9 +237,9 @@ def main(
     except ObsidianFileError:
         raise
     except tomllib.TOMLDecodeError as e:
-        raise typer.UsageError("Error parsing TOML configuration file.") from e
+        raise click.UsageError("Error parsing TOML configuration file.") from e
     except Exception as e:
-        raise typer.UsageError("Error loading configuration.") from e
+        raise click.UsageError("Error loading configuration.") from e
 
     if verbose is None:
         verbose = configuration.verbose
@@ -274,6 +277,12 @@ def main(
         # Command line argument provided - split by colon
         blacklist_dirs_list = [dir.strip() for dir in blacklist.split(":") if dir.strip()]
 
+    if config is None:
+        config_dirs_list = list(configuration.config_dirs)
+    else:
+        # Command line argument provided - split by colon
+        config_dirs_list = [dir.strip() for dir in config.split(":") if dir.strip()]
+
     # Validate journal template
     journal_template = configuration.journal_template
     try:
@@ -293,9 +302,10 @@ def main(
 
     # Create the application state
     ctx.obj = State(
+        blacklist=blacklist_dirs_list,
+        config_dirs=config_dirs_list,
         editor=editor,
         ident_key=configuration.ident_key,
-        blacklist=blacklist_dirs_list,
         journal_template=journal_template,
         vault=vault,
         verbose=verbose,
@@ -445,22 +455,7 @@ def info(ctx: typer.Context) -> None:
         logger.error("Error getting vault info: %s", vault_info["error"])
         raise typer.Exit(code=1)
 
-    # Display vault statistics
-    typer.secho("--- Vault Information ---", bold=True)
-    typer.echo(f"Vault Path: {vault_info['vault_path']}")
-    typer.echo(f"Markdown Files: {vault_info['markdown_files']}")
-    typer.echo(f"Total Files: {vault_info['total_files']}")
-    typer.echo(f"Total Directories: {vault_info['total_directories']}")
-
-    # Display configuration information
-    typer.echo("")
-    typer.secho("--- Configuration Details ---", bold=True)
-    typer.echo(f"Editor: {vault_info['editor']}")
-    typer.echo(f"Verbose: {vault_info['verbose']}")
-    typer.echo(f"Blacklist: {':'.join(vault_info['blacklist'])}")
-    journal_template_info = f"{vault_info['journal_template']} => {vault_info['journal_path']}"
-    typer.echo(f"Journal Template: {journal_template_info}")
-    typer.echo(f"Version: {vault_info['version']}")
+    _display_vault_info(vault_info)
 
 
 @cli.command()
