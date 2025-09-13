@@ -200,10 +200,10 @@ blacklist = ["temp/", "cache/"]
         self.assertEqual(result.exit_code, 0)
         self.assertIn("OBSIDIAN VAULT INFORMATION", result.stdout)
 
-    @patch("subprocess.call")
+    @patch("subprocess.run")
     def test_journal_command(self, mock_subprocess):
         """Test journal command functionality."""
-        mock_subprocess.return_value = 0
+        mock_subprocess.return_value = None
 
         result = self.run_cli_command(["journal"])
 
@@ -250,7 +250,7 @@ blacklist = ["temp/", "cache/"]
 
     def test_new_command_basic(self):
         """Test new command basic functionality."""
-        with patch("subprocess.call", return_value=0):
+        with patch("subprocess.run", return_value=None):
             self.run_cli_command(["new", "new_note"])
 
         # File should be created

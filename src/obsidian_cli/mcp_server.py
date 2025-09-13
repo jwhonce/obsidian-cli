@@ -6,7 +6,6 @@ AI assistants and other MCP clients.
 """
 
 import io
-import logging
 import sys
 from contextlib import redirect_stdout
 from pathlib import Path
@@ -26,8 +25,6 @@ except ImportError as e:
     raise ImportError(
         f"MCP dependencies not installed. Please install with: pip install mcp. Details: {e}"
     ) from e
-
-logger = logging.getLogger(__name__)
 
 
 async def serve_mcp(ctx: typer.Context, state) -> None:
@@ -108,18 +105,19 @@ async def serve_mcp(ctx: typer.Context, state) -> None:
     async def call_tool(name: str, arguments: dict) -> list[TextContent]:
         """Handle tool calls."""
         try:
-            if name == "create_note":
-                return await handle_create_note(ctx, state, arguments)
-            elif name == "find_notes":
-                return await handle_find_notes(ctx, state, arguments)
-            elif name == "get_note_content":
-                return await handle_get_note_content(ctx, state, arguments)
-            elif name == "get_vault_info":
-                return await handle_get_vault_info(ctx, state, arguments)
-            else:
-                return [TextContent(type="text", text=f"Unknown tool: {name}")]
+            match name:
+                case "create_note":
+                    return await handle_create_note(ctx, state, arguments)
+                case "find_notes":
+                    return await handle_find_notes(ctx, state, arguments)
+                case "get_note_content":
+                    return await handle_get_note_content(ctx, state, arguments)
+                case "get_vault_info":
+                    return await handle_get_vault_info(ctx, state, arguments)
+                case _:
+                    return [TextContent(type="text", text=f"Unknown tool: {name}")]
         except Exception as e:
-            logger.error(f"Error in tool {name}: {e}")
+            typer.secho(f"Error in tool {name}: {e}", err=True, fg=typer.colors.RED)
             return [TextContent(type="text", text=f"Error: {str(e)}")]
 
     # Run the server
@@ -139,6 +137,7 @@ async def handle_create_note(ctx: typer.Context, state, args: dict) -> list:
     force = args.get("force", False)
 
     try:
+        # Import inside function to avoid circular import (main.py imports serve_mcp)
         from .main import new
 
         # Convert filename to Path object
@@ -179,6 +178,7 @@ async def handle_find_notes(ctx: typer.Context, state, args: dict) -> list:
     exact = args.get("exact", False)
 
     try:
+        # Import inside function to avoid circular import (main.py imports serve_mcp)
         from .main import _find_matching_files
 
         vault_path = Path(state.vault)
@@ -202,6 +202,7 @@ async def handle_get_note_content(ctx: typer.Context, state, args: dict) -> list
     show_frontmatter = args.get("show_frontmatter", False)
 
     try:
+        # Import inside function to avoid circular import (main.py imports serve_mcp)
         from .main import cat
 
         # Convert filename to Path object

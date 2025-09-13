@@ -4,9 +4,11 @@ Additional tests for utils module to improve coverage.
 
 import tempfile
 import unittest
+from datetime import datetime
 from pathlib import Path
 from unittest.mock import patch
 
+from obsidian_cli.exceptions import ObsidianFileError
 from obsidian_cli.utils import (
     _check_if_path_blacklisted,
     _display_find_results,
@@ -196,6 +198,119 @@ Content""")
             # Verify file was updated
             updated_post = _get_frontmatter(test_file)
             self.assertEqual(updated_post.metadata["title"], "New Title")
+
+    def test_update_metadata_key_file_not_found_error(self):
+        """Test _update_metadata_key handling FileNotFoundError during write."""
+
+        # Create test file
+        test_file = self.vault_path / "test.md"
+        test_file.write_text("""---
+title: Original Title
+---
+Content""")
+
+        post = _get_frontmatter(test_file)
+
+        # Mock open to raise FileNotFoundError
+        with patch("builtins.open", side_effect=FileNotFoundError("File not found")):
+            with self.assertRaises(ObsidianFileError) as cm:
+                _update_metadata_key(post, test_file, "author", "Test Author", False)
+
+            # Verify the error message contains expected information
+            self.assertIn("Unable to update key 'author':'Test Author'", str(cm.exception))
+            self.assertIn(str(test_file), str(cm.exception))
+
+    def test_update_metadata_key_permission_error(self):
+        """Test _update_metadata_key handling PermissionError during write."""
+
+        # Create test file
+        test_file = self.vault_path / "test.md"
+        test_file.write_text("""---
+title: Original Title
+---
+Content""")
+
+        post = _get_frontmatter(test_file)
+
+        # Mock open to raise PermissionError (should not be caught, should propagate)
+        with patch("builtins.open", side_effect=PermissionError("Permission denied")):
+            with self.assertRaises(PermissionError):
+                _update_metadata_key(post, test_file, "author", "Test Author", False)
+
+    def test_update_metadata_key_modified_timestamp_updated(self):
+        """Test that _update_metadata_key updates the modified timestamp."""
+
+        # Create test file with original modified timestamp
+        original_time = datetime(2023, 1, 1, 12, 0, 0)
+        test_file = self.vault_path / "test.md"
+        test_file.write_text(f"""---
+title: Original Title
+modified: {original_time.isoformat()}
+---
+Content""")
+
+        post = _get_frontmatter(test_file)
+        original_modified = post.metadata["modified"]
+
+        # Update with a small delay to ensure timestamp changes
+        import time
+
+        time.sleep(0.01)  # Small delay to ensure different timestamp
+
+        _update_metadata_key(post, test_file, "author", "Test Author", False)
+
+        # Verify file was updated and modified timestamp changed
+        updated_post = _get_frontmatter(test_file)
+        self.assertEqual(updated_post.metadata["author"], "Test Author")
+        self.assertNotEqual(updated_post.metadata["modified"], original_modified)
+        self.assertIsInstance(updated_post.metadata["modified"], datetime)
+
+    def test_update_metadata_key_different_value_types(self):
+        """Test _update_metadata_key with different value types."""
+
+        # Create test file
+        test_file = self.vault_path / "test.md"
+        test_file.write_text("""---
+title: Original Title
+---
+Content""")
+
+        post = _get_frontmatter(test_file)
+
+        # Test with integer value (converted to string by the function signature)
+        _update_metadata_key(post, test_file, "number", "42", False)
+
+        # Verify file was updated
+        updated_post = _get_frontmatter(test_file)
+        self.assertEqual(updated_post.metadata["number"], "42")
+
+        # Test with boolean-like string value
+        _update_metadata_key(post, test_file, "published", "true", False)
+
+        # Verify file was updated
+        updated_post = _get_frontmatter(test_file)
+        self.assertEqual(updated_post.metadata["published"], "true")
+
+    def test_update_metadata_key_verbose_message_format(self):
+        """Test that verbose message contains correct format."""
+
+        # Create test file
+        test_file = self.vault_path / "test.md"
+        test_file.write_text("""---
+title: Original Title
+---
+Content""")
+
+        post = _get_frontmatter(test_file)
+
+        with patch("typer.echo") as mock_echo:
+            _update_metadata_key(post, test_file, "tags", "test,example", True)
+
+            # Verify the exact format of the verbose message
+            mock_echo.assert_called_once()
+            call_args = mock_echo.call_args[0][0]
+            expected_message = f"Updated 'tags': 'test,example' in {test_file}"
+            self.assertEqual(call_args, expected_message)
 
     def test_display_query_results_json_format(self):
         """Test _display_query_results with JSON format."""

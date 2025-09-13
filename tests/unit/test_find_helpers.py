@@ -30,17 +30,17 @@ class TestFindHelpers(unittest.TestCase):
     def test_check_filename_match_exact(self):
         """Test exact filename matching."""
         # Exact match should match exactly
-        self.assertTrue(_check_filename_match("test_file", "test_file", exact_match=True))
-        self.assertFalse(_check_filename_match("test_file", "test", exact_match=True))
-        self.assertFalse(_check_filename_match("test_file", "TEST_FILE", exact_match=True))
+        self.assertTrue(_check_filename_match(Path("test_file.md"), "test_file", exact_match=True))
+        self.assertFalse(_check_filename_match(Path("test_file.md"), "test", exact_match=True))
+        self.assertFalse(_check_filename_match(Path("test_file.md"), "TEST_FILE", exact_match=True))
 
     def test_check_filename_match_fuzzy(self):
         """Test fuzzy filename matching."""
         # Fuzzy match should be case-insensitive and allow partial matches
-        self.assertTrue(_check_filename_match("test_file", "test", exact_match=False))
-        self.assertTrue(_check_filename_match("TEST_FILE", "test", exact_match=False))
-        self.assertTrue(_check_filename_match("My_Test_File", "test", exact_match=False))
-        self.assertFalse(_check_filename_match("example", "test", exact_match=False))
+        self.assertTrue(_check_filename_match(Path("test_file.md"), "test", exact_match=False))
+        self.assertTrue(_check_filename_match(Path("TEST_FILE.md"), "test", exact_match=False))
+        self.assertTrue(_check_filename_match(Path("My_Test_File.md"), "test", exact_match=False))
+        self.assertFalse(_check_filename_match(Path("example.md"), "test", exact_match=False))
 
     def test_check_title_match(self):
         """Test title matching in frontmatter."""

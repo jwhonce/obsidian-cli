@@ -1,6 +1,5 @@
 """Configuration management for obsidian-cli application."""
 
-import os
 import tomllib
 from contextlib import suppress
 from dataclasses import dataclass, field
@@ -22,8 +21,6 @@ class Configuration:
     - (OS-specific user's config directory) /.config/obsidian-cli/config.toml
     - ~/.config/obsidian-cli/config.toml
     - Hand-coded defaults
-
-    Note: This class assumes logging is not configured.
     """
 
     blacklist: list[str] = field(
@@ -92,7 +89,7 @@ class Configuration:
             )
         """
 
-        # Initialize default configuration
+        # Instantiate default configuration values
         default = cls()
 
         config_found = False
@@ -144,11 +141,8 @@ class Configuration:
         Raises:
             ObsidianFileError: When configuration file is not found
         """
-        if not path.exists():
-            raise ObsidianFileError(path, "Configuration file not found")
-
         if verbose:
-            typer.echo(f"Parsing configuration from: {path}")
+            typer.echo(f"Attempting to load configuration from: {path}")
 
         try:
             with open(path, "rb") as f:
@@ -156,3 +150,5 @@ class Configuration:
         except tomllib.TOMLDecodeError as e:
             typer.secho(f"Error parsing {path}: {e}", err=True, fg=typer.colors.RED)
             raise
+        except FileNotFoundError as e:
+            raise ObsidianFileError(path, "Configuration file not found") from e

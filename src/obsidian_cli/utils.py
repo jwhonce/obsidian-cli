@@ -19,11 +19,11 @@ if TYPE_CHECKING:
     from .main import State
 
 
-def _check_filename_match(file_stem: str, search_name: str, exact_match: bool) -> bool:
+def _check_filename_match(file_path: Path, search_name: str, exact_match: bool) -> bool:
     """Check if a filename matches the search criteria.
 
     Args:
-        file_stem: The filename without extension to check against.
+        file_path: The file path to check against (stem will be extracted).
         search_name: The search term to look for.
         exact_match: If True, requires exact equality; if False, performs a
                      case-insensitive substring match.
@@ -31,6 +31,9 @@ def _check_filename_match(file_stem: str, search_name: str, exact_match: bool) -
     Returns:
         bool: True if the filename matches the search criteria, False otherwise.
     """
+    # Get the file stem (filename without extension) as the page name
+    file_stem = file_path.stem
+
     if exact_match:
         return file_stem == search_name
     else:
@@ -86,7 +89,7 @@ def _display_find_results(matches: list[Path], page_name: str, verbose: bool, va
         None: Results are printed directly to stdout.
     """
     if not matches:
-        typer.secho(f"No files found matching '{page_name}'", err=True, fg="red")
+        typer.secho(f"No files found matching '{page_name}'", err=True, fg=typer.colors.RED)
     else:
         for match in sorted(matches):
             typer.echo(match)
@@ -209,11 +212,8 @@ def _find_matching_files(vault: Path, search_name: str, exact_match: bool) -> li
         # Get relative path from vault root
         rel_path = file_path.relative_to(vault)
 
-        # Get the file stem (filename without extension) as the page name
-        file_stem = file_path.stem
-
         # Check for match in filename
-        if _check_filename_match(file_stem, search_name, exact_match):
+        if _check_filename_match(file_path, search_name, exact_match):
             matches.append(rel_path)
             continue
 
@@ -244,6 +244,7 @@ def _get_frontmatter(filename: Path) -> frontmatter.Post:
     try:
         return frontmatter.load(filename)
     except FileNotFoundError:
+        typer.secho(f"Page or File '{filename}' does not exist.", err=True, fg=typer.colors.RED)
         raise ObsidianFileError(filename, "Page or File does not exist.") from None
 
 
@@ -475,7 +476,7 @@ def _list_all_metadata(post: frontmatter.Post) -> None:
               if no metadata is found.
     """
     if not post.metadata:
-        typer.secho("No frontmatter metadata found for this page", err=True, fg="red")
+        typer.secho("No frontmatter metadata found for this page", err=True, fg=typer.colors.RED)
     else:
         for k, v in post.metadata.items():
             typer.echo(f"{k}: {v}")
@@ -505,6 +506,9 @@ def _resolve_path(page_or_path: Path, vault: Path) -> Path:
     if filename.exists():
         return filename
 
+    typer.secho(
+        f"Page or File '{page_or_path}' not found in vault: {vault}", err=True, fg=typer.colors.RED
+    )
     raise ObsidianFileError(page_or_path, f"Page or File not found in vault: {vault}")
 
 
@@ -529,12 +533,19 @@ def _update_metadata_key(
     post[key] = value
     post["modified"] = datetime.now()
 
-    # Write back to the file
-    with open(filename, "w") as f:
-        f.write(frontmatter.dumps(post))
+    try:
+        # Write back to the file
+        with open(filename, "w") as f:
+            f.write(frontmatter.dumps(post))
+    except FileNotFoundError as e:
+        typer.secho(
+            f"Error updating file '{filename}' with key '{key}':'{value}': {e}",
+            err=True,
+            fg=typer.colors.RED,
+        )
+        raise ObsidianFileError(
+            filename, f"Unable to update key '{key}':'{value}' in {filename}"
+        ) from e
 
     if verbose:
         typer.echo(f"Updated '{key}': '{value}' in {filename}")
-
-
-# Configuration class has been moved to configuration.py

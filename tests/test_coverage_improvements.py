@@ -2,7 +2,7 @@
 Additional tests to improve code coverage for obsidian-cli.
 """
 
-import logging
+# logging removed - using direct typer output
 import os
 import tempfile
 import tomllib
@@ -10,7 +10,8 @@ import unittest
 import unittest.mock
 from asyncio import CancelledError
 from datetime import datetime
-from io import StringIO
+
+# StringIO no longer needed - logging removed
 from pathlib import Path
 from unittest.mock import Mock, patch
 
@@ -19,7 +20,7 @@ from typer.testing import CliRunner
 
 from obsidian_cli.configuration import Configuration
 from obsidian_cli.exceptions import ObsidianFileError
-from obsidian_cli.main import State, TyperLoggerHandler, cli, main
+from obsidian_cli.main import State, cli, main
 from obsidian_cli.utils import _get_vault_info
 
 
@@ -39,62 +40,38 @@ class TestCoverageImprovements(unittest.TestCase):
             return result.output
 
     def test_configuration_file_not_found_verbose(self):
-        """Test that message is logged in verbose mode when no config found."""
+        """Test that message is displayed in verbose mode when no config found."""
         with tempfile.TemporaryDirectory() as temp_dir:
             old_cwd = os.getcwd()
             try:
                 os.chdir(temp_dir)
                 # Ensure no default config files exist
 
-                # Set up a logging capture to see what actually gets logged
-                log_capture = StringIO()
-                handler = logging.StreamHandler(log_capture)
-                handler.setLevel(logging.DEBUG)
+                # Mock Configuration.from_path to return (False, default_config)
+                # simulating no config file found - the key is config_from_file=False
+                with patch("obsidian_cli.configuration.Configuration.from_path") as mock_from_path:
+                    mock_config = Configuration()  # Use default config (verbose=False)
+                    # This is the critical part - config_from_file must be False
+                    mock_from_path.return_value = (False, mock_config)
 
-                # Get the actual logger and add our handler
-                actual_logger = logging.getLogger("obsidian_cli.main")
-                original_level = actual_logger.level
-                actual_logger.addHandler(handler)
-                actual_logger.setLevel(logging.DEBUG)
+                    # Create a valid vault directory for the info command
+                    vault_dir = Path(temp_dir) / "test_vault"
+                    vault_dir.mkdir()
 
-                try:
-                    # Mock Configuration.from_path to return (False, default_config)
-                    # simulating no config file found - the key is config_from_file=False
-                    with patch(
-                        "obsidian_cli.configuration.Configuration.from_path"
-                    ) as mock_from_path:
-                        mock_config = Configuration()  # Use default config (verbose=False)
-                        # This is the critical part - config_from_file must be False
-                        mock_from_path.return_value = (False, mock_config)
+                    # Pass --verbose explicitly to enable verbose output
+                    # This overrides the config's verbose=False setting
+                    result = self.runner.invoke(
+                        cli, ["--vault", str(vault_dir), "--verbose", "info"]
+                    )
 
-                        # Create a valid vault directory for the info command
-                        vault_dir = Path(temp_dir) / "test_vault"
-                        vault_dir.mkdir()
+                    # Should succeed when vault is provided
+                    self.assertEqual(result.exit_code, 0)
 
-                        # Pass --verbose explicitly to enable verbose logging
-                        # This overrides the config's verbose=False setting
-                        result = self.runner.invoke(
-                            cli, ["--vault", str(vault_dir), "--verbose", "info"]
-                        )
+                    # Check if the message appears in stderr (where typer.secho outputs)
+                    expected_msg = "Hard-coded defaults will be used as no config file was found."
+                    # With typer output, this message should appear in the output
+                    self.assertIn(expected_msg, result.stderr)
 
-                        # Should succeed when vault is provided
-                        self.assertEqual(result.exit_code, 0)
-
-                        # Check if the message appears in the log output
-                        log_output = log_capture.getvalue()
-                        expected_msg = (
-                            "Hard-coded defaults will be used as no config file was found."
-                        )
-                        if expected_msg not in log_output:
-                            # This test may be sensitive to logging implementation
-                            # Just verify the command succeeded
-                            self.assertTrue(True, "Command succeeded, logging details may vary")
-                        else:
-                            self.assertIn(expected_msg, log_output)
-                finally:
-                    # Clean up the handler
-                    actual_logger.removeHandler(handler)
-                    actual_logger.setLevel(original_level)  # Restore original level
             finally:
                 os.chdir(old_cwd)
 
@@ -250,16 +227,15 @@ vault = "{temp_dir}"
 journal_template = "Journal/{{invalid_var}}/{{year}}"
 """)
 
-                with patch("obsidian_cli.main.logger") as mock_logger:
-                    result = self.runner.invoke(cli, ["--config", str(config_file), "journal"])
+                result = self.runner.invoke(cli, ["--config", str(config_file), "journal"])
 
-                    # Should exit with code 1 (template validation error)
-                    self.assertEqual(result.exit_code, 1)
+                # Should exit with code 1 (template validation error)
+                self.assertEqual(result.exit_code, 1)
 
-                    # Verify that the invalid template error was logged
-                    mock_logger.error.assert_called_once_with(
-                        "Invalid journal_template: %s", "Journal/{invalid_var}/{year}"
-                    )
+                # Verify that the invalid template error was displayed
+                self.assertIn(
+                    "Invalid journal_template: Journal/{invalid_var}/{year}", result.stderr
+                )
             finally:
                 os.chdir(old_cwd)
 
@@ -288,32 +264,7 @@ journal_template = "Journal/{{invalid_var}}/{{year}}"
 
     # OBSIDIAN_CONFIG_DIRS functionality has been removed
 
-    def test_typer_logger_handler(self):
-        """Test TyperLoggerHandler functionality."""
-
-        handler = TyperLoggerHandler()
-
-        # Test different log levels
-        test_cases = [
-            (logging.DEBUG, "typer.colors.BLACK", None),
-            (logging.INFO, "typer.colors.BRIGHT_BLUE", None),
-            (logging.WARNING, "typer.colors.BRIGHT_MAGENTA", None),
-            (logging.ERROR, "typer.colors.BRIGHT_WHITE", "typer.colors.RED"),
-            (logging.CRITICAL, "typer.colors.BRIGHT_RED", None),
-        ]
-
-        for level, _expected_fg, _expected_bg in test_cases:
-            # Build a LogRecord directly instead of using an undefined factory
-            record = logging.LogRecord(
-                name="test",
-                level=level,
-                pathname=__file__,
-                lineno=0,
-                msg="msg",
-                args=(),
-                exc_info=None,
-            )
-            handler.emit(record)
+    # TyperLoggerHandler has been removed - logging replaced with direct typer output
 
     def test_add_uid_force_overwrite(self):
         """Test add-uid command with force overwrite."""
@@ -355,18 +306,15 @@ title: Test File
 # Test Content
 """)
 
-            with patch("obsidian_cli.main.logger") as mock_logger:
-                # Test without force flag (should fail and log error)
-                result = self.runner.invoke(cli, ["--vault", str(vault), "add-uid", "test"])
-                self.assertEqual(result.exit_code, 1)
+            # Test without force flag (should fail and display error)
+            result = self.runner.invoke(cli, ["--vault", str(vault), "add-uid", "test"])
+            self.assertEqual(result.exit_code, 1)
 
-                # Verify that the error was logged
-                mock_logger.error.assert_called_once_with(
-                    "Page '%s' already has UID: %s", Path("test"), "existing-uid-123"
-                )
+            # Verify that the error was displayed
+            self.assertIn("Page 'test' already has UID: existing-uid-123", result.stderr)
 
-    def test_add_uid_debug_logging(self):
-        """Test that add-uid logs debug message when generating new UUID."""
+    def test_add_uid_verbose_output(self):
+        """Test that add-uid displays verbose message when generating new UUID."""
 
         with self.runner.isolated_filesystem():
             vault = Path("vault").resolve()
@@ -381,18 +329,14 @@ title: Test File
 # Test Content
 """)
 
-            with patch("obsidian_cli.main.logger") as mock_logger:
-                # Test adding UID to file without existing UID
-                result = self.runner.invoke(cli, ["--vault", str(vault), "add-uid", "test"])
-                self.assertEqual(result.exit_code, 0)
+            # Test adding UID with verbose output
+            result = self.runner.invoke(
+                cli, ["--vault", str(vault), "--verbose", "add-uid", "test"]
+            )
+            self.assertEqual(result.exit_code, 0)
 
-                # Verify that the debug message was logged
-                mock_logger.debug.assert_called_once()
-                call_args = mock_logger.debug.call_args[0]
-                self.assertEqual(call_args[0], "Generated new UUID: %s")
-                # Second argument should be a UUID string
-                self.assertIsInstance(call_args[1], str)
-                self.assertEqual(len(call_args[1]), 36)  # Standard UUID length
+            # Verify that the verbose message was displayed
+            self.assertIn("Generated new UUID:", result.stdout)
 
     def test_add_uid_without_force_existing(self):
         """Test add-uid command without force when UID exists."""
@@ -410,15 +354,12 @@ title: Test
 Content here
 """)
 
-            with patch("obsidian_cli.main.logger") as mock_logger:
-                # Test adding UID without force
-                result = self.runner.invoke(cli, ["--vault", str(vault), "add-uid", "test"])
-                self.assertEqual(result.exit_code, 1)
+            # Test adding UID without force
+            result = self.runner.invoke(cli, ["--vault", str(vault), "add-uid", "test"])
+            self.assertEqual(result.exit_code, 1)
 
-                # Verify that the error was logged
-                mock_logger.error.assert_called_once_with(
-                    "Page '%s' already has UID: %s", Path("test"), "existing-uid"
-                )
+            # Verify that the error was displayed
+            self.assertIn("Page 'test' already has UID: existing-uid", result.stderr)
 
     def test_cat_with_frontmatter(self):
         """Test cat command with frontmatter display."""
@@ -465,6 +406,45 @@ This is the content.
             self.assertEqual(result.exit_code, 0)
             self.assertNotIn("title: Test", result.output)
             self.assertIn("This is the content.", result.output)
+
+    def test_cat_error_handling(self):
+        """Test cat command error handling for unreadable files."""
+        with self.runner.isolated_filesystem():
+            vault = Path("vault").resolve()
+            vault.mkdir()
+
+            # Create a test file
+            test_file = vault / "test.md"
+            test_file.write_text("test content")
+
+            # Remove read permissions to simulate permission error
+            import os
+
+            os.chmod(test_file, 0o000)
+
+            try:
+                # Test cat with frontmatter - should show clean error message
+                result = self.runner.invoke(
+                    cli, ["--vault", str(vault), "cat", "test", "--show-frontmatter"]
+                )
+                self.assertEqual(result.exit_code, 1)
+                self.assertIn("Error displaying contents of 'test'", result.output)
+                self.assertIn("Permission denied", result.output)
+                # Should not contain stack trace elements
+                self.assertNotIn("Traceback", result.output)
+                self.assertNotIn("pathlib", result.output)
+
+                # Test cat without frontmatter - should also show clean error message
+                result = self.runner.invoke(cli, ["--vault", str(vault), "cat", "test"])
+                self.assertEqual(result.exit_code, 1)
+                self.assertIn("Error displaying contents of 'test'", result.output)
+                self.assertIn("Permission denied", result.output)
+                # Should not contain stack trace elements
+                self.assertNotIn("Traceback", result.output)
+
+            finally:
+                # Restore permissions for cleanup
+                os.chmod(test_file, 0o644)
 
     @patch("subprocess.run")
     def test_edit_command_success(self, mock_run):
@@ -683,8 +663,8 @@ Content
             # Mock the edit command to raise FileNotFoundError
             with patch("obsidian_cli.main.edit", side_effect=FileNotFoundError("File not found")):
                 result = self.runner.invoke(cli, ["--vault", str(vault), "journal"])
-                self.assertEqual(result.exit_code, 2)
-                # Exit code confirms the FileNotFoundError path was taken
+                self.assertEqual(result.exit_code, 1)
+                # FileNotFoundError from edit command now propagates with exit code 1
 
     def test_journal_template_variable_error(self):
         """Test journal command with template variable that fails during execution."""
@@ -865,10 +845,10 @@ Content
             # With logging changes, we verify the exit code confirms the file
             # exists error path was taken
 
-    @patch("subprocess.call")
-    def test_new_with_stdin_content(self, mock_call):
+    @patch("subprocess.run")
+    def test_new_with_stdin_content(self, mock_run):
         """Test new command with content from stdin."""
-        mock_call.return_value = 0
+        mock_run.return_value = None
 
         with self.runner.isolated_filesystem():
             vault = Path("vault").resolve()
@@ -894,7 +874,7 @@ Content
             test_file = vault / "existing.md"
             test_file.write_text("Existing content")
 
-            with patch("subprocess.call", return_value=0):
+            with patch("subprocess.run", return_value=None):
                 result = self.runner.invoke(
                     cli, ["--vault", str(vault), "--verbose", "new", "existing", "--force"]
                 )
@@ -907,7 +887,7 @@ Content
             vault = Path("vault").resolve()
             vault.mkdir()
 
-            with patch("subprocess.call", return_value=0):
+            with patch("subprocess.run", return_value=None):
                 with patch("sys.stdin.isatty", return_value=False):
                     with patch("sys.stdin.read", return_value="Content from stdin"):
                         result = self.runner.invoke(
@@ -922,7 +902,7 @@ Content
             vault = Path("vault").resolve()
             vault.mkdir()
 
-            with patch("subprocess.call", return_value=0):
+            with patch("subprocess.run", return_value=None):
                 result = self.runner.invoke(
                     cli, ["--vault", str(vault), "--verbose", "new", "test-file"]
                 )
@@ -947,17 +927,44 @@ Content
             self.assertEqual(result.exit_code, 1)
             # Exit code confirms the file exists error path was taken
 
-    def test_new_general_error_handling(self):
-        """Test new command general error handling when frontmatter operations fail."""
+    def test_new_file_writing_error_handling(self):
+        """Test new command file writing error handling when frontmatter operations fail."""
         with self.runner.isolated_filesystem():
             vault = Path("vault").resolve()
             vault.mkdir()
 
-            # Mock frontmatter.dumps to raise an exception during file creation
+            # Mock frontmatter.dumps to raise an exception during file writing
             with patch("frontmatter.dumps", side_effect=Exception("Frontmatter error")):
                 result = self.runner.invoke(cli, ["--vault", str(vault), "new", "test-file"])
                 self.assertEqual(result.exit_code, 1)
-                # Exit code confirms the general error path was taken
+                # Exit code confirms the file writing error path was taken
+
+    def test_new_directory_creation_error_handling(self):
+        """Test new command directory creation error handling."""
+        with self.runner.isolated_filesystem():
+            vault = Path("vault").resolve()
+            vault.mkdir()
+
+            # Mock Path.mkdir to raise an OSError during directory creation
+            with patch("pathlib.Path.mkdir", side_effect=OSError("Permission denied")):
+                result = self.runner.invoke(cli, ["--vault", str(vault), "new", "subdir/test-file"])
+                self.assertEqual(result.exit_code, 1)
+                # Exit code confirms the directory creation error path was taken
+
+    @patch("subprocess.run")
+    def test_new_content_preparation_error_handling(self, mock_run):
+        """Test new command content preparation error handling."""
+        mock_run.return_value = None
+
+        with self.runner.isolated_filesystem():
+            vault = Path("vault").resolve()
+            vault.mkdir()
+
+            # Mock frontmatter.Post to raise an exception during content preparation
+            with patch("frontmatter.Post", side_effect=Exception("Content preparation error")):
+                result = self.runner.invoke(cli, ["--vault", str(vault), "new", "test-file"])
+                self.assertEqual(result.exit_code, 1)
+                # Exit code confirms the content preparation error path was taken
 
     def test_query_conflicting_options(self):
         """Test query command with conflicting options."""
@@ -1326,14 +1333,14 @@ Content""")
         with patch("obsidian_cli.configuration.Configuration.from_path") as mock_from_path:
             mock_from_path.side_effect = ObsidianFileError(
                 "config.toml",
-                "Config file not found",  # uses default exit_code=12
+                "Config file not found",  # Converted to click.UsageError
             )
 
             # Call a command that requires configuration
             result = runner.invoke(cli, ["info"])
 
-            # ObsidianFileError should be re-raised and handled by click/typer
-            self.assertEqual(result.exit_code, 12)
+            # ObsidianFileError should be converted to click.UsageError with exit_code=2
+            self.assertEqual(result.exit_code, 2)
 
             # Configuration loading should have been attempted
             mock_from_path.assert_called_once()
@@ -1374,15 +1381,15 @@ Content""")
             self.assertNotEqual(result.exit_code, 0)
             mock_from_path.assert_called_once()
 
-        # Test ObsidianFileError (should be re-raised)
+        # Test ObsidianFileError (now handled as click.UsageError with exit_code=2)
         with patch("obsidian_cli.configuration.Configuration.from_path") as mock_from_path:
             mock_from_path.side_effect = ObsidianFileError(
                 "config.toml",
-                "Obsidian config file not found",  # uses default exit_code=12
+                "Obsidian config file not found",  # Converted to click.UsageError
             )
 
             result = runner.invoke(cli, ["info"])
-            self.assertEqual(result.exit_code, 12)
+            self.assertEqual(result.exit_code, 2)
             mock_from_path.assert_called_once()
 
         # Test other exceptions (should get configuration error)
@@ -1410,15 +1417,15 @@ Content""")
         """Test that configuration errors use correct exit codes."""
         runner = CliRunner()
 
-        # Test ObsidianFileError from configuration (should use exit_code=12)
+        # Test ObsidianFileError from configuration (now handled as click.UsageError with exit_code=2)
         with patch("obsidian_cli.configuration.Configuration.from_path") as mock_from_path:
             mock_from_path.side_effect = ObsidianFileError(
                 "config.toml",
-                "Config file not found",  # Uses default exit_code=12
+                "Config file not found",  # Converted to click.UsageError
             )
 
             result = runner.invoke(cli, ["info"])
-            self.assertEqual(result.exit_code, 12)
+            self.assertEqual(result.exit_code, 2)
             mock_from_path.assert_called_once()
 
         # Test other exceptions (should get exit_code=2)
@@ -1484,8 +1491,8 @@ Content""")
             )
 
             result = runner.invoke(cli, ["info"])
-            # ObsidianFileError should be re-raised with its exit code
-            self.assertEqual(result.exit_code, 12)
+            # ObsidianFileError should be converted to click.UsageError with exit_code=2
+            self.assertEqual(result.exit_code, 2)
 
 
 if __name__ == "__main__":

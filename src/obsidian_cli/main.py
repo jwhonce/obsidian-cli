@@ -86,9 +86,7 @@ License: Apache License 2.0
 """
 
 import asyncio
-import errno
 import importlib.metadata
-import logging
 import shutil
 import signal
 import sys
@@ -145,7 +143,6 @@ cli = typer.Typer(
     no_args_is_help=True,
     context_settings={"max_content_width": get_terminal_size().columns},
 )
-logger = logging.getLogger(__name__)
 
 
 def _version(value: bool) -> None:
@@ -230,19 +227,22 @@ def main(
     #   command line args > environment variables > config file > coded default
     try:
         (from_file, configuration) = Configuration.from_path(config, verbose=verbose is True)
-    except ObsidianFileError:
-        raise
+
+        if verbose is None:
+            verbose = configuration.verbose
+    except ObsidianFileError as e:
+        raise click.UsageError("Error loading configuration.") from e
     except tomllib.TOMLDecodeError as e:
         raise click.UsageError("Error parsing TOML configuration file.") from e
     except Exception as e:
         raise click.UsageError("Error loading configuration.") from e
-
-    if verbose is None:
-        verbose = configuration.verbose
-    logger.setLevel(logging.DEBUG if verbose else logging.WARN)
-
-    if not from_file:
-        logger.info("Hard-coded defaults will be used as no config file was found.")
+    finally:
+        if verbose and not from_file:
+            typer.secho(
+                "Hard-coded defaults will be used as no config file was found.",
+                err=True,
+                fg=typer.colors.YELLOW,
+            )
 
     # Apply configuration values if CLI arguments are not provided
     if vault is None:
@@ -272,9 +272,6 @@ def main(
         # Command line argument provided - split by colon
         blacklist_dirs_list = [dir.strip() for dir in blacklist.split(":") if dir.strip()]
 
-    # config_dirs is now handled entirely within Configuration class
-    config_dirs_list = [str(dir) for dir in configuration.config_dirs]
-
     # Validate journal template
     journal_template = configuration.journal_template
     try:
@@ -288,14 +285,14 @@ def main(
             "weekday_abbr": "Mon",
         }
         journal_template.format(**test_vars)
-    except (KeyError, ValueError) as e:
-        logger.error("Invalid journal_template: %s", journal_template)
-        raise typer.Exit(code=1) from e
+    except (KeyError, ValueError):
+        typer.secho(f"Invalid journal_template: {journal_template}", err=True, fg=typer.colors.RED)
+        raise typer.Exit(code=1) from None
 
     # Create the application state
     ctx.obj = State(
         blacklist=blacklist_dirs_list,
-        config_dirs=config_dirs_list,
+        config_dirs=configuration.config_dirs,
         editor=editor,
         ident_key=configuration.ident_key,
         journal_template=journal_template,
@@ -324,33 +321,31 @@ def add_uid(
     # While the short cut of using Obsidian page names is convenient, it implies
     #  we cannot use typer helpers to enforce validation.
     filename = _resolve_path(page_or_path, state.vault)
+    post = _get_frontmatter(filename)
 
-    try:
-        # Use the helper function to get frontmatter to check if UID already exists
-        post = _get_frontmatter(filename)
-
-        # Check if UID already exists
-        if state.ident_key in post.metadata and not force:
-            logger.error(
-                "Page '%s' already has UID: %s", page_or_path, post.metadata[state.ident_key]
-            )
-            logger.info("Use --force to replace value of existing UID.")
-            raise typer.Exit(code=1)
-
-        new_uuid = str(uuid.uuid4())
-        logger.debug("Generated new UUID: %s", new_uuid)
-
-        # Update frontmatter with the new UUID
-        ctx.invoke(
-            meta,
-            ctx=ctx,
-            page_or_path=page_or_path,
-            key=state.ident_key,
-            value=new_uuid,
+    # Check if UID already exists (outside try block since this is intentional control flow)
+    if state.ident_key in post.metadata and not force:
+        typer.secho(
+            f"Page '{page_or_path}' already has UID: {post.metadata[state.ident_key]}",
+            err=True,
+            fg=typer.colors.RED,
         )
+        if state.verbose:
+            typer.echo("Use --force to replace value of existing UID.")
+        raise typer.Exit(code=1)
 
-    except Exception as e:
-        raise typer.Exit(code=1) from e
+    new_uuid = str(uuid.uuid4())
+    if state.verbose:
+        typer.echo(f"Generated new UUID: {new_uuid}")
+
+    # Update frontmatter with the new UUID
+    ctx.invoke(
+        meta,
+        ctx=ctx,
+        page_or_path=page_or_path,
+        key=state.ident_key,
+        value=new_uuid,
+    )
 
 
 @cli.command()
@@ -365,15 +360,24 @@ def cat(
     state: State = ctx.obj
     filename = _resolve_path(page_or_path, state.vault)
 
-    try:
-        if show_frontmatter:
-            # Simply read and display the entire file
+    if show_frontmatter:
+        # Simply read and display the entire file
+        try:
             typer.echo(filename.read_text())
-        else:
+        except Exception as e:
+            typer.secho(
+                f"Error displaying contents of '{page_or_path}': {e}", err=True, fg=typer.colors.RED
+            )
+            raise typer.Exit(code=1) from None
+    else:
+        try:
             # Parse with frontmatter and only display the content / body
             typer.echo(frontmatter.load(filename).content)
-    except Exception as e:
-        raise typer.Exit(code=1) from e
+        except Exception as e:
+            typer.secho(
+                f"Error displaying contents of '{page_or_path}': {e}", err=True, fg=typer.colors.RED
+            )
+            raise typer.Exit(code=1) from None
 
 
 @cli.command()
@@ -392,21 +396,30 @@ def edit(ctx: typer.Context, page_or_path: PAGE_FILE) -> None:
         # Open the file in the configured editor
         subprocess.run([str(state.editor), str(filename)], check=True)
 
-    except FileNotFoundError as e:
-        logger.error(
-            "Error: '%s' command not found. Please ensure %s is installed and in your PATH.",
-            state.editor,
-            state.editor,
+    except FileNotFoundError:
+        typer.secho(
+            (
+                f"Error: '{state.editor}' command not found."
+                f" Please ensure {state.editor} is installed and in your PATH."
+            ),
+            err=True,
+            fg=typer.colors.RED,
         )
-        raise typer.Exit(code=2) from e
+        raise typer.Exit(code=2) from None
     except subprocess.CalledProcessError as e:
-        logger.error(
-            "Editor '%s' exited with code %d while editing %s", state.editor, e.returncode, filename
+        typer.secho(
+            f"Editor '{state.editor}' exited with code {e.returncode} while editing {filename}",
+            err=True,
+            fg=typer.colors.RED,
         )
-        raise typer.Exit(code=1) from e
+        raise typer.Exit(code=1) from None
     except Exception as e:
-        logger.error("Error launching editor '%s': %s", state.editor, e)
-        raise typer.Exit(code=1) from e
+        typer.secho(
+            f"Error launching editor '{state.editor}' while editing {filename}: {e}",
+            err=True,
+            fg=typer.colors.RED,
+        )
+        raise typer.Exit(code=1) from None
 
     ctx.invoke(meta, ctx=ctx, page_or_path=page_or_path, key="modified", value=datetime.now())
 
@@ -427,8 +440,9 @@ def find(
     """Find files in the vault that match the given page name."""
     state: State = ctx.obj
 
-    logger.debug("Searching for page: '%s'", page_name)
-    logger.debug("Exact match: %s", exact_match)    
+    if state.verbose:
+        typer.echo(f"Searching for page: '{page_name}'")
+        typer.echo(f"Exact match: {exact_match}")
 
     # Convert page_name to lowercase for case-insensitive search if not exact match
     search_name = page_name if exact_match else page_name.lower()
@@ -448,7 +462,9 @@ def info(ctx: typer.Context) -> None:
     vault_info = _get_vault_info(state)
 
     if not vault_info["exists"]:
-        logger.error("Error getting vault info: %s", vault_info["error"])
+        typer.secho(
+            f"Error getting vault info: {vault_info['error']}", err=True, fg=typer.colors.RED
+        )
         raise typer.Exit(code=1)
 
     _display_vault_info(vault_info)
@@ -488,22 +504,20 @@ def journal(
         journal_path_str = state.journal_template.format(**template_vars)
         page_path = Path(journal_path_str).with_suffix(".md")
     except KeyError as e:
-        logger.error("Invalid template variable in journal_template: %s", e)
-        raise typer.Exit(code=1) from e
+        typer.secho(
+            f"Invalid template variable in journal_template: {e}", err=True, fg=typer.colors.RED
+        )
+        raise typer.Exit(code=1) from None
     except Exception as e:
-        logger.error("Error formatting journal template: %s", e)
-        raise typer.Exit(code=1) from e
+        typer.secho(f"Error formatting journal template: {e}", err=True, fg=typer.colors.RED)
+        raise typer.Exit(code=1) from None
 
-    logger.debug(
-        "Using journal template: %s\nResolved journal path: %s", state.journal_template, page_path
-    )
+    if state.verbose:
+        typer.echo(
+            f"Using journal template: {state.journal_template}\nResolved journal path: {page_path}",
+        )
 
-    try:
-        # Open the journal for editing
-        ctx.invoke(edit, ctx=ctx, page_or_path=page_path)
-    except FileNotFoundError as e:
-        logger.error("Journal entry '%s' not found.", page_path)
-        raise typer.Exit(code=2) from e
+    ctx.invoke(edit, ctx=ctx, page_or_path=page_path)
 
 
 @cli.command()
@@ -556,12 +570,20 @@ def meta(
             _display_metadata_key(post, key)
         else:
             _update_metadata_key(post, filename, key, value, state.verbose)
-    except KeyError as e:
-        logger.error("Property '%s' not found in frontmatter of '%s'", key, page_or_path)
-        raise typer.Exit(code=1) from e
+    except KeyError:
+        typer.secho(
+            f"Property '{key}' not found in frontmatter of '{page_or_path}'",
+            err=True,
+            fg=typer.colors.RED,
+        )
+        raise typer.Exit(code=1) from None
     except Exception as e:
-        logger.error("Error updating metadata key '%s' in '%s': %s", key, page_or_path, e)
-        raise typer.Exit(code=1) from e
+        typer.secho(
+            f"Error updating metadata key '{key}' in '{page_or_path}': {e}",
+            err=True,
+            fg=typer.colors.RED,
+        )
+        raise typer.Exit(code=1) from None
 
 
 @cli.command()
@@ -578,52 +600,61 @@ def new(
     filename = state.vault / page_or_path.with_suffix(".md")
     if filename.exists():
         if force:
-            logger.debug("Overwriting existing file: %s", filename)
+            if state.verbose:
+                typer.echo(f"Overwriting existing file: {filename}")
         else:
-            logger.error("File already exists: %s", filename)
-            raise typer.Exit(code=1) from FileExistsError(
-                errno.EEXIST, "File already exists", str(filename)
-            )
+            typer.secho(f"File already exists: {filename}", err=True, fg=typer.colors.RED)
+            raise typer.Exit(code=1)
+
+    # Create parent directories if they don't exist
+    try:
+        filename.parent.mkdir(parents=True, exist_ok=True)
+    except OSError as e:
+        typer.secho(
+            f"Error creating directory '{filename.parent}': {e}", err=True, fg=typer.colors.RED
+        )
+        raise typer.Exit(code=1) from None
+
+    # Prepare file content
+    title = page_or_path.stem
 
     try:
-        # Create parent directories if they don't exist
-        filename.parent.mkdir(parents=True, exist_ok=True)
-
-        # Metadata for the frontmatter
-        title = page_or_path.stem
-
         # Check if stdin has content (if pipe is being used)
         if not sys.stdin.isatty():
             # Read content from stdin
             content = sys.stdin.read().strip()
-
-            # Use the piped content for the file
             post = frontmatter.Post(content)
-            logger.debug("Using content from stdin")
+
+            if state.verbose:
+                typer.echo("Using content from stdin")
         else:
             md_file = MdUtils(file_name=str(filename), title=title, title_header_style="atx")
             post = frontmatter.Post(md_file.get_md_text())
+    except Exception as e:
+        typer.secho(f"Error preparing file content: {e}", err=True, fg=typer.colors.RED)
+        raise typer.Exit(code=1) from None
 
-        # Add frontmatter metadata
-        created_time = datetime.now()
-        post["created"] = created_time
-        post["modified"] = created_time
-        post["title"] = title
+    # Add frontmatter metadata
+    created_time = datetime.now()
+    post["created"] = created_time
+    post["modified"] = created_time
+    post["title"] = title
+    post[state.ident_key] = str(uuid.uuid4())
 
-        post[state.ident_key] = str(uuid.uuid4())
-
-        # Write to file with frontmatter
+    # Write file to disk
+    try:
         with open(filename, "w", encoding="utf-8") as f:
             f.write(frontmatter.dumps(post) + "\n\n")
-        logger.debug("Created new file: %s", filename)
 
-        # Now edit the file if we're not using stdin
-        # (if using stdin, the file already has content)
-        if sys.stdin.isatty():
-            ctx.invoke(edit, ctx=ctx, page_or_path=page_or_path)
+        if state.verbose:
+            typer.echo(f"Created new file: {filename}")
+    except OSError as e:
+        typer.secho(f"Error writing file '{filename}': {e}", err=True, fg=typer.colors.RED)
+        raise typer.Exit(code=1) from None
 
-    except Exception as e:
-        raise typer.Exit(code=1) from e
+    # Open file in editor (if not using stdin input)
+    if sys.stdin.isatty():
+        ctx.invoke(edit, ctx=ctx, page_or_path=page_or_path)
 
 
 class QueryOutputStyle(StrEnum):
@@ -722,61 +753,76 @@ def query(
 
     # Check for conflicting options
     if value is not None and contains is not None:
-        logger.error("Error: Cannot specify both --value and --contains")
+        typer.secho(
+            "Error: Cannot specify both --value and --contains", err=True, fg=typer.colors.RED
+        )
         raise typer.Exit(code=1)
 
-    logger.debug("Searching for frontmatter key: %s", key)
-    if value is not None:
-        logger.debug("Filtering for exact value: %s", value)
-    if contains is not None:
-        logger.debug("Filtering for substring: %s", contains)
-    if exists:
-        logger.debug("Filtering for key existence")
-    if missing:
-        logger.debug("Filtering for key absence")
+    if state.verbose:
+        typer.echo(f"Searching for frontmatter key: {key}")
+        if value is not None:
+            typer.echo(f"Filtering for exact value: {value}")
+        if contains is not None:
+            typer.echo(f"Filtering for substring: {contains}")
+        if exists:
+            typer.echo("Filtering for key existence")
+        if missing:
+            typer.echo("Filtering for key absence")
 
     # Find all markdown files in the vault
     matches = []
     for file_path in state.vault.rglob("*.md"):
+        # Get relative path from vault root
         try:
-            # Get relative path from vault root
             rel_path = file_path.relative_to(state.vault)
+        except ValueError as e:
+            typer.secho(
+                f"Could not resolve relative path for {file_path}: {e}",
+                err=True,
+                fg=typer.colors.YELLOW,
+            )
+            continue
 
-            # Skip files in blacklisted directories
-            if _check_if_path_blacklisted(rel_path, state.blacklist):
-                logger.debug("Skipping excluded file: %s", rel_path)
+        # Skip files in blacklisted directories
+        if _check_if_path_blacklisted(rel_path, state.blacklist):
+            if state.verbose:
+                typer.echo(f"Skipping excluded file: {rel_path}")
+            continue
+
+        try:
+            post = _get_frontmatter(file_path)
+        except ObsidianFileError as e:
+            typer.secho(
+                f"Could not parse frontmatter in {rel_path}: {e}", err=True, fg=typer.colors.YELLOW
+            )
+            continue
+
+        # Check if key exists and apply filters
+        has_key = key in post.metadata
+
+        # Apply filters
+        if missing and has_key:
+            continue
+        if exists and not has_key:
+            continue
+
+        if has_key:
+            metadata = post.metadata[key]
+
+            # Value filtering
+            if value is not None and str(metadata) != value:
                 continue
 
-            # Parse frontmatter
-            post = _get_frontmatter(file_path)  # Check if key exists
-            has_key = key in post.metadata
-
-            # Apply filters
-            if missing and has_key:
+            # Contains filtering
+            if contains is not None and contains not in str(metadata):
                 continue
-            if exists and not has_key:
-                continue
+        elif not missing:
+            # If the key doesn't exist and we're not specifically
+            # looking for missing keys
+            continue
 
-            if has_key:
-                metadata = post.metadata[key]
-
-                # Value filtering
-                if value is not None and str(metadata) != value:
-                    continue
-
-                # Contains filtering
-                if contains is not None and contains not in str(metadata):
-                    continue
-            elif not missing:
-                # If the key doesn't exist and we're not specifically
-                # looking for missing keys
-                continue
-
-            # If we got here, the file matches all criteria
-            matches.append((rel_path, post))
-
-        except Exception as e:
-            logger.warning("Could not process %s: %s", file_path, e)
+        # If we got here, the file matches all criteria
+        matches.append((rel_path, post))
 
     # Display results
     if count:
@@ -803,10 +849,10 @@ def rm(
     try:
         # Remove the file
         filename.unlink()
-        logger.debug("File removed: %s", filename)
+        typer.echo(f"File removed: {filename}")
     except Exception as e:
-        logger.error("Error removing file: %s", e)
-        raise typer.Exit(code=1) from e
+        typer.secho(f"Error removing file: {e}", err=True, fg=typer.colors.RED)
+        raise typer.Exit(code=1) from None
 
 
 @cli.command()
@@ -824,12 +870,14 @@ def serve(ctx: typer.Context) -> None:
 
     state: State = ctx.obj
 
-    logger.debug("Starting MCP server for vault: %s", state.vault)
-    logger.info("Server will run until interrupted (Ctrl+C)")
+    if state.verbose:
+        typer.echo(f"Starting MCP server for vault: {state.vault}")
+        typer.echo("Server will run until interrupted (Ctrl+C)")
 
     # Set up signal handling to suppress stack traces
     def signal_handler(signum, frame):
-        logger.debug("MCP server stopped.")
+        if state.verbose:
+            typer.echo("MCP server stopped.")
         sys.exit(0)
 
     signal.signal(signal.SIGINT, signal_handler)
@@ -839,51 +887,19 @@ def serve(ctx: typer.Context) -> None:
         # Run the MCP server
         asyncio.run(serve_mcp(ctx, state))
     except (KeyboardInterrupt, CancelledError):
-        logger.debug("MCP server stopped.")
+        if state.verbose:
+            typer.echo("MCP server stopped.")
         # Ensure output is flushed before exiting
         sys.stdout.flush()
         sys.stderr.flush()
         # Return without raising to prevent any stack trace
         return
     except Exception as e:
-        logger.error("Error starting MCP server: %s", e)
-        logger.debug("Traceback: %s", traceback.format_exc())
-        raise typer.Exit(1) from e
-
-
-class TyperLoggerHandler(logging.Handler):
-    """Custom logging handler that outputs colored log messages using typer.
-
-    This handler formats log messages with appropriate colors based on the log level:
-    - DEBUG: Black text
-    - INFO: Bright blue text
-    - WARNING: Bright magenta text
-    - ERROR: Bright white text on red background
-    - CRITICAL: Bright red text
-
-    The handler uses typer.secho() to output colored text to the terminal,
-    providing better visual distinction between different log levels.
-    """
-
-    def emit(self, record: logging.LogRecord) -> None:
-        (fg, bg) = (None, None)
-        match record.levelno:
-            case logging.DEBUG:
-                fg = typer.colors.BLACK
-            case logging.INFO:
-                fg = typer.colors.BRIGHT_BLUE
-            case logging.WARNING:
-                fg = typer.colors.BRIGHT_MAGENTA
-            case logging.CRITICAL:
-                fg = typer.colors.BRIGHT_RED
-            case logging.ERROR:
-                fg = typer.colors.BRIGHT_WHITE
-                bg = typer.colors.RED
-        # Expected output is written to stdout with or without styling
-        typer.secho(self.format(record), bg=bg, fg=fg, err=True)
+        typer.secho(f"Error starting MCP server: {e}", err=True, fg=typer.colors.RED)
+        if state.verbose:
+            typer.echo(f"Traceback: {traceback.format_exc()}")
+        raise typer.Exit(1) from None
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.NOTSET, handlers=(TyperLoggerHandler(),))
-
     cli()
