@@ -2,11 +2,21 @@
 
 This document provides detailed API reference for the Obsidian CLI project.
 
+## Module Organization
+
+The Obsidian CLI codebase is organized into the following modules:
+
+- **`configuration.py`** - Configuration class and TOML file handling
+- **`exceptions.py`** - Project-specific exception classes 
+- **`main.py`** - CLI commands, State class, and main application logic
+- **`mcp_server.py`** - Model Context Protocol server functionality
+- **`utils.py`** - Utility functions for file operations, display, and vault management
+
 ## Classes
 
 ### ObsidianFileError
 
-**Location**: `src/obsidian_cli/utils.py`
+**Location**: `src/obsidian_cli/exceptions.py`
 
 **Inheritance**: `click.FileError` → `ObsidianFileError`
 
@@ -46,7 +56,7 @@ Returns detailed representation for debugging.
 
 ### Configuration
 
-**Location**: `src/obsidian_cli/utils.py`
+**Location**: `src/obsidian_cli/configuration.py`
 
 **Type**: `@dataclass(frozen=True)`
 
@@ -398,6 +408,7 @@ VaultInfo = dict[str, Any]
 
 ### Internal Dependencies
 
-- Circular import avoidance using `TYPE_CHECKING`
-- Local imports in functions to prevent import cycles
-- State object passed between functions for configuration
+- **Modular design**: Functionality separated into specialized modules
+- **Clean imports**: Configuration and exceptions in separate modules prevent circular dependencies
+- **TYPE_CHECKING**: Used to avoid runtime import cycles for type hints
+- **State object**: Passed between functions for configuration access

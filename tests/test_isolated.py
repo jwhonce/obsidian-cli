@@ -8,7 +8,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from obsidian_cli.main import Configuration
+from obsidian_cli.configuration import Configuration
 
 
 class TestIsolated(unittest.TestCase):

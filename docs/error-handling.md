@@ -165,7 +165,7 @@ def test_file_not_found_error(self):
 
 def test_configuration_error(self):
     """Test that configuration errors use correct exit code."""
-    with patch("obsidian_cli.utils.Configuration.from_path") as mock_from_path:
+    with patch("obsidian_cli.configuration.Configuration.from_path") as mock_from_path:
         mock_from_path.side_effect = ObsidianFileError(
             "config.toml", "Config file not found"  # Uses default exit_code=12
         )

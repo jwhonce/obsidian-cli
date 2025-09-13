@@ -36,7 +36,11 @@ obsidian-cli/
 ├── src/
 │   └── obsidian_cli/   # Main package
 │       ├── __init__.py
-│       └── main.py     # CLI commands and logic
+│       ├── configuration.py    # Configuration class and TOML loading
+│       ├── exceptions.py       # Custom exception classes
+│       ├── main.py            # CLI commands and State management
+│       ├── mcp_server.py      # MCP server functionality
+│       └── utils.py           # Utility functions
 ├── tests/              # Test files
 ├── Makefile            # Build automation
 ├── obsidian-cli.toml   # Example configuration
@@ -45,11 +49,13 @@ obsidian-cli/
 └── MANIFEST.in         # Package files inclusion
 ```
 
-The main functionality is contained in `src/obsidian_cli/main.py`, which:
+The functionality is distributed across multiple modules:
 
-- Defines the CLI commands
-- Implements the logic for interacting with Obsidian vaults
-- Provides helper functions for common operations
+- **`main.py`**: CLI commands and State management
+- **`configuration.py`**: Configuration class with TOML file loading and validation
+- **`exceptions.py`**: Project-specific exception classes (ObsidianFileError)
+- **`utils.py`**: Utility functions for file operations, display, and vault management
+- **`mcp_server.py`**: Model Context Protocol server functionality
 
 ## Coding Style
 

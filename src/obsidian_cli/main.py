@@ -89,6 +89,7 @@ import asyncio
 import errno
 import importlib.metadata
 import logging
+import shutil
 import signal
 import sys
 import tomllib
@@ -108,10 +109,10 @@ import typer
 from mdutils.mdutils import MdUtils  # type: ignore[import-untyped]
 from typing_extensions import Doc
 
+from .configuration import Configuration
+from .exceptions import ObsidianFileError
 from .mcp_server import serve_mcp
 from .utils import (
-    Configuration,
-    ObsidianFileError,
     _check_if_path_blacklisted,
     _display_find_results,
     _display_metadata_key,
@@ -178,15 +179,10 @@ def main(
         ),
     ] = None,
     config: Annotated[
-        Optional[str],
+        Optional[Path],
         typer.Option(
-            envvar="OBSIDIAN_CONFIG_DIRS",
-            help=(
-                "Colon-separated list of files to read configuration from."
-                " Precedence is given to the first file found."
-                " [default: ./obsidian-cli.toml:~/.config/obsidian-cli/config.toml]"
-            ),
-            show_default=False,
+            help=("Configuration file to read configuration from."),
+            exists=True,
         ),
     ] = None,
     blacklist: Annotated[
@@ -266,8 +262,7 @@ def main(
 
     if editor is None:
         editor = configuration.editor
-    if editor is not None:
-        editor = configuration.editor.expanduser().resolve()
+    editor = shutil.which(editor)
 
     # Get blacklist directories from command line, config, or defaults
     # (in order of precedence)
@@ -277,11 +272,8 @@ def main(
         # Command line argument provided - split by colon
         blacklist_dirs_list = [dir.strip() for dir in blacklist.split(":") if dir.strip()]
 
-    if config is None:
-        config_dirs_list = list(configuration.config_dirs)
-    else:
-        # Command line argument provided - split by colon
-        config_dirs_list = [dir.strip() for dir in config.split(":") if dir.strip()]
+    # config_dirs is now handled entirely within Configuration class
+    config_dirs_list = [str(dir) for dir in configuration.config_dirs]
 
     # Validate journal template
     journal_template = configuration.journal_template
@@ -390,11 +382,16 @@ def edit(ctx: typer.Context, page_or_path: PAGE_FILE) -> None:
     state: State = ctx.obj
     filename = _resolve_path(page_or_path, state.vault)
 
+    # Note: typer.launch() is designed for opening URLs/files with default applications,
+    # not for running specific commands with custom editors. For this use case, we need
+    # to honor the user's configured editor, so subprocess.run() is the appropriate tool.
+
     try:
-        # Open the file in the configured editor using subprocess
         import subprocess
 
+        # Open the file in the configured editor
         subprocess.run([str(state.editor), str(filename)], check=True)
+
     except FileNotFoundError as e:
         logger.error(
             "Error: '%s' command not found. Please ensure %s is installed and in your PATH.",
@@ -408,7 +405,7 @@ def edit(ctx: typer.Context, page_or_path: PAGE_FILE) -> None:
         )
         raise typer.Exit(code=1) from e
     except Exception as e:
-        logger.error("An error occurred using %s while editing %s", state.editor, filename)
+        logger.error("Error launching editor '%s': %s", state.editor, e)
         raise typer.Exit(code=1) from e
 
     ctx.invoke(meta, ctx=ctx, page_or_path=page_or_path, key="modified", value=datetime.now())
@@ -430,9 +427,8 @@ def find(
     """Find files in the vault that match the given page name."""
     state: State = ctx.obj
 
-    if state.verbose:
-        typer.echo(f"Searching for page: '{page_name}'")
-        typer.echo(f"Exact match: {exact_match}\n")
+    logger.debug("Searching for page: '%s'", page_name)
+    logger.debug("Exact match: %s", exact_match)    
 
     # Convert page_name to lowercase for case-insensitive search if not exact match
     search_name = page_name if exact_match else page_name.lower()

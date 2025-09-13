@@ -17,8 +17,10 @@ from unittest.mock import Mock, patch
 import typer
 from typer.testing import CliRunner
 
+from obsidian_cli.configuration import Configuration
+from obsidian_cli.exceptions import ObsidianFileError
 from obsidian_cli.main import State, TyperLoggerHandler, cli, main
-from obsidian_cli.utils import Configuration, ObsidianFileError, _get_vault_info
+from obsidian_cli.utils import _get_vault_info
 
 
 class TestCoverageImprovements(unittest.TestCase):
@@ -58,7 +60,9 @@ class TestCoverageImprovements(unittest.TestCase):
                 try:
                     # Mock Configuration.from_path to return (False, default_config)
                     # simulating no config file found - the key is config_from_file=False
-                    with patch("obsidian_cli.utils.Configuration.from_path") as mock_from_path:
+                    with patch(
+                        "obsidian_cli.configuration.Configuration.from_path"
+                    ) as mock_from_path:
                         mock_config = Configuration()  # Use default config (verbose=False)
                         # This is the critical part - config_from_file must be False
                         mock_from_path.return_value = (False, mock_config)
@@ -100,8 +104,8 @@ class TestCoverageImprovements(unittest.TestCase):
             old_cwd = os.getcwd()
             try:
                 os.chdir(temp_dir)
-                # Create invalid TOML file
-                config_file = Path("obsidian-cli.toml")
+                # Create invalid TOML file in current directory (uses .obsidian-cli.toml filename)
+                config_file = Path(".obsidian-cli.toml")
                 config_file.write_text("invalid toml content [[[")
 
                 result = self.runner.invoke(cli, ["info"])
@@ -153,7 +157,9 @@ invalid_syntax ===== "broken"
                         del os.environ["OBSIDIAN_VAULT"]
 
                     # Mock Configuration.from_path to return config without vault
-                    with patch("obsidian_cli.utils.Configuration.from_path") as mock_from_path:
+                    with patch(
+                        "obsidian_cli.configuration.Configuration.from_path"
+                    ) as mock_from_path:
                         mock_config = Configuration(vault=None)
                         mock_from_path.return_value = (False, mock_config)
 
@@ -192,7 +198,7 @@ invalid_syntax ===== "broken"
                 # Mock Configuration.from_path to raise an exception
                 mock_exception = Exception("Test configuration error")
 
-                with patch("obsidian_cli.utils.Configuration.from_path") as mock_from_path:
+                with patch("obsidian_cli.configuration.Configuration.from_path") as mock_from_path:
                     mock_from_path.side_effect = mock_exception
 
                     result = self.runner.invoke(cli, ["info"])
@@ -245,7 +251,7 @@ journal_template = "Journal/{{invalid_var}}/{{year}}"
 """)
 
                 with patch("obsidian_cli.main.logger") as mock_logger:
-                    result = self.runner.invoke(cli, ["--config", str(config_file), "info"])
+                    result = self.runner.invoke(cli, ["--config", str(config_file), "journal"])
 
                     # Should exit with code 1 (template validation error)
                     self.assertEqual(result.exit_code, 1)
@@ -280,110 +286,7 @@ journal_template = "Journal/{{invalid_var}}/{{year}}"
         self.assertNotEqual(config1.blacklist, config2.blacklist)
         self.assertNotIn("test/", config2.blacklist)
 
-    def test_obsidian_config_dirs_single_file(self):
-        """Test OBSIDIAN_CONFIG_DIRS with single file."""
-        with tempfile.TemporaryDirectory() as temp_dir:
-            config_file = Path(temp_dir) / "config.toml"
-            config_file.write_text(f"""
-vault = "{temp_dir}/test_vault"
-editor = "test_editor"
-verbose = true
-""")
-
-            (Path(temp_dir) / "test_vault").mkdir()
-
-            with patch.dict("os.environ", {"OBSIDIAN_CONFIG_DIRS": str(config_file)}):
-                result = self.runner.invoke(cli, ["info"])
-
-                self.assertEqual(result.exit_code, 0)
-                self.assertIn("test_editor", result.output)
-                self.assertIn("Verbose               Yes", result.output)
-
-    def test_obsidian_config_dirs_precedence(self):
-        """Test OBSIDIAN_CONFIG_DIRS precedence with multiple files."""
-        with tempfile.TemporaryDirectory() as temp_dir:
-            # Create both config files
-            config1 = Path(temp_dir) / "first.toml"
-            config1.write_text(
-                f'vault = "{temp_dir}/test_vault"\neditor = "first_editor"\nverbose = true'
-            )
-
-            config2 = Path(temp_dir) / "second.toml"
-            config2.write_text(
-                f'vault = "{temp_dir}/test_vault"\neditor = "second_editor"\nverbose = false'
-            )
-
-            (Path(temp_dir) / "test_vault").mkdir()
-
-            # First file should take precedence
-            with patch.dict("os.environ", {"OBSIDIAN_CONFIG_DIRS": f"{config1}:{config2}"}):
-                result = self.runner.invoke(cli, ["info"])
-
-                self.assertEqual(result.exit_code, 0)
-                self.assertIn("first_editor", result.output)
-                self.assertNotIn("second_editor", result.output)
-
-    def test_obsidian_config_dirs_fallback(self):
-        """Test OBSIDIAN_CONFIG_DIRS fallback when first file missing."""
-        with tempfile.TemporaryDirectory() as temp_dir:
-            config2 = Path(temp_dir) / "second.toml"
-            config2.write_text(f'vault = "{temp_dir}/test_vault"\neditor = "second_editor"')
-
-            (Path(temp_dir) / "test_vault").mkdir()
-
-            nonexistent = Path(temp_dir) / "missing.toml"
-
-            # Should use second file when first doesn't exist
-            with patch.dict("os.environ", {"OBSIDIAN_CONFIG_DIRS": f"{nonexistent}:{config2}"}):
-                result = self.runner.invoke(cli, ["info"])
-
-                self.assertEqual(result.exit_code, 0)
-                self.assertIn("second_edit", result.output)  # May be truncated by Rich
-
-    def test_obsidian_config_dirs_error_handling(self):
-        """Test OBSIDIAN_CONFIG_DIRS error handling when no files exist."""
-        with tempfile.TemporaryDirectory() as temp_dir:
-            (Path(temp_dir) / "test_vault").mkdir()
-
-            # Single nonexistent file
-            with patch.dict(
-                "os.environ", {"OBSIDIAN_CONFIG_DIRS": str(Path(temp_dir) / "missing.toml")}
-            ):
-                result = self.runner.invoke(
-                    cli, ["--vault", str(Path(temp_dir) / "test_vault"), "info"]
-                )
-                self.assertNotEqual(result.exit_code, 0)
-                # Rich formatting splits error messages across lines, so check for key parts
-                self.assertIn("configuration file(s) not found", result.output)
-
-            # Multiple nonexistent files
-            missing_paths = f"{Path(temp_dir)}/missing1.toml:{Path(temp_dir)}/missing2.toml"
-            with patch.dict("os.environ", {"OBSIDIAN_CONFIG_DIRS": missing_paths}):
-                result = self.runner.invoke(
-                    cli, ["--vault", str(Path(temp_dir) / "test_vault"), "info"]
-                )
-                self.assertNotEqual(result.exit_code, 0)
-                # Rich formatting splits error messages across lines, so check for key parts
-                self.assertIn("configuration file(s) not found", result.output)
-
-    def test_obsidian_config_dirs_cli_override(self):
-        """Test that --config CLI option overrides OBSIDIAN_CONFIG_DIRS."""
-        with tempfile.TemporaryDirectory() as temp_dir:
-            env_config = Path(temp_dir) / "env.toml"
-            env_config.write_text(f'vault = "{temp_dir}/test_vault"\neditor = "env_editor"')
-
-            cli_config = Path(temp_dir) / "cli.toml"
-            cli_config.write_text(f'vault = "{temp_dir}/test_vault"\neditor = "cli_editor"')
-
-            (Path(temp_dir) / "test_vault").mkdir()
-
-            # CLI should override env var
-            with patch.dict("os.environ", {"OBSIDIAN_CONFIG_DIRS": str(env_config)}):
-                result = self.runner.invoke(cli, ["--config", str(cli_config), "info"])
-
-                self.assertEqual(result.exit_code, 0)
-                self.assertIn("cli_editor", result.output)
-                self.assertNotIn("env_editor", result.output)
+    # OBSIDIAN_CONFIG_DIRS functionality has been removed
 
     def test_typer_logger_handler(self):
         """Test TyperLoggerHandler functionality."""
@@ -1420,7 +1323,7 @@ Content""")
         runner = CliRunner()
 
         # Mock Configuration.from_path to raise ObsidianFileError (project exception type)
-        with patch("obsidian_cli.utils.Configuration.from_path") as mock_from_path:
+        with patch("obsidian_cli.configuration.Configuration.from_path") as mock_from_path:
             mock_from_path.side_effect = ObsidianFileError(
                 "config.toml",
                 "Config file not found",  # uses default exit_code=12
@@ -1440,7 +1343,7 @@ Content""")
         runner = CliRunner()
 
         # Mock Configuration.from_path to raise a different exception
-        with patch("obsidian_cli.utils.Configuration.from_path") as mock_from_path:
+        with patch("obsidian_cli.configuration.Configuration.from_path") as mock_from_path:
             mock_from_path.side_effect = ValueError("Some other config error")
 
             # Call a command that requires configuration
@@ -1462,7 +1365,7 @@ Content""")
         runner = CliRunner()
 
         # Test FileError (should be re-raised)
-        with patch("obsidian_cli.utils.Configuration.from_path") as mock_from_path:
+        with patch("obsidian_cli.configuration.Configuration.from_path") as mock_from_path:
             from click import FileError
 
             mock_from_path.side_effect = FileError("config.toml", "Config file not found")
@@ -1472,7 +1375,7 @@ Content""")
             mock_from_path.assert_called_once()
 
         # Test ObsidianFileError (should be re-raised)
-        with patch("obsidian_cli.utils.Configuration.from_path") as mock_from_path:
+        with patch("obsidian_cli.configuration.Configuration.from_path") as mock_from_path:
             mock_from_path.side_effect = ObsidianFileError(
                 "config.toml",
                 "Obsidian config file not found",  # uses default exit_code=12
@@ -1483,7 +1386,7 @@ Content""")
             mock_from_path.assert_called_once()
 
         # Test other exceptions (should get configuration error)
-        with patch("obsidian_cli.utils.Configuration.from_path") as mock_from_path:
+        with patch("obsidian_cli.configuration.Configuration.from_path") as mock_from_path:
             mock_from_path.side_effect = ValueError("Config parsing error")
 
             result = runner.invoke(cli, ["info"])
@@ -1508,7 +1411,7 @@ Content""")
         runner = CliRunner()
 
         # Test ObsidianFileError from configuration (should use exit_code=12)
-        with patch("obsidian_cli.utils.Configuration.from_path") as mock_from_path:
+        with patch("obsidian_cli.configuration.Configuration.from_path") as mock_from_path:
             mock_from_path.side_effect = ObsidianFileError(
                 "config.toml",
                 "Config file not found",  # Uses default exit_code=12
@@ -1519,7 +1422,7 @@ Content""")
             mock_from_path.assert_called_once()
 
         # Test other exceptions (should get exit_code=2)
-        with patch("obsidian_cli.utils.Configuration.from_path") as mock_from_path:
+        with patch("obsidian_cli.configuration.Configuration.from_path") as mock_from_path:
             mock_from_path.side_effect = ValueError("Config parsing error")
 
             result = runner.invoke(cli, ["info"])
@@ -1565,7 +1468,7 @@ Content""")
         runner = CliRunner()
 
         # Test FileError re-raising
-        with patch("obsidian_cli.utils.Configuration.from_path") as mock_from_path:
+        with patch("obsidian_cli.configuration.Configuration.from_path") as mock_from_path:
             from click import FileError
 
             mock_from_path.side_effect = FileError("config.toml", "File not found")
@@ -1575,7 +1478,7 @@ Content""")
             self.assertNotEqual(result.exit_code, 0)
 
         # Test ObsidianFileError re-raising
-        with patch("obsidian_cli.utils.Configuration.from_path") as mock_from_path:
+        with patch("obsidian_cli.configuration.Configuration.from_path") as mock_from_path:
             mock_from_path.side_effect = ObsidianFileError(
                 "config.toml", "Obsidian config file not found"
             )

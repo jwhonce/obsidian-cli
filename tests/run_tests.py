@@ -10,7 +10,7 @@ from pathlib import Path
 # Add src to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from obsidian_cli.utils import ObsidianFileError
+from obsidian_cli.exceptions import ObsidianFileError
 from tests.test_coverage_improvements import TestCoverageImprovements
 
 
@@ -44,8 +44,10 @@ def run_specific_tests():
 def validate_imports():
     """Validate that all required imports are available."""
     try:
+        from obsidian_cli.configuration import Configuration
+        from obsidian_cli.exceptions import ObsidianFileError
         from obsidian_cli.main import State, TyperLoggerHandler, cli, main
-        from obsidian_cli.utils import Configuration, ObsidianFileError, _get_vault_info
+        from obsidian_cli.utils import _get_vault_info
 
         print("✓ All imports successful")
         return True

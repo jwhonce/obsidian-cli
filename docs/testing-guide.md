@@ -137,7 +137,7 @@ def test_configuration_error_handling(self):
     runner = CliRunner()
 
     # Test ObsidianFileError from configuration
-    with patch("obsidian_cli.utils.Configuration.from_path") as mock_from_path:
+    with patch("obsidian_cli.configuration.Configuration.from_path") as mock_from_path:
         mock_from_path.side_effect = ObsidianFileError(
             "config.toml", "Config file not found"
         )
@@ -171,7 +171,7 @@ def test_exit_codes(self):
     self.assertEqual(result.exit_code, 11)
 
     # Configuration error (exit_code=12)
-    with patch("obsidian_cli.utils.Configuration.from_path") as mock:
+    with patch("obsidian_cli.configuration.Configuration.from_path") as mock:
         mock.side_effect = ObsidianFileError("config.toml", "Not found")
         result = self.runner.invoke(cli, ["info"])
         self.assertEqual(result.exit_code, 12)
@@ -189,7 +189,7 @@ def test_exit_codes(self):
 ```python
 def test_with_mocked_configuration(self):
     """Test with mocked configuration."""
-    with patch("obsidian_cli.utils.Configuration.from_path") as mock_from_path:
+    with patch("obsidian_cli.configuration.Configuration.from_path") as mock_from_path:
         mock_config = Configuration(vault=Path("/test/vault"))
         mock_from_path.return_value = (None, mock_config)
 

@@ -9,7 +9,8 @@ from unittest.mock import patch
 import frontmatter
 from typer.testing import CliRunner
 
-from obsidian_cli.main import Configuration, State, _check_if_path_blacklisted, cli
+from obsidian_cli.configuration import Configuration
+from obsidian_cli.main import State, _check_if_path_blacklisted, cli
 
 
 class TestMain(unittest.TestCase):
@@ -101,8 +102,8 @@ class TestMain(unittest.TestCase):
             try:
                 os.chdir(temp_dir)
 
-                # Create test config file
-                config_file = Path("obsidian-cli.toml")
+                # Create test config file in current directory (uses .obsidian-cli.toml filename)
+                config_file = Path(".obsidian-cli.toml")
                 config_file.write_text(
                     """
 vault = "/test/vault"
@@ -197,7 +198,7 @@ blacklist = ["temp/", "cache/"]
         result = self.run_cli_command(["info"])
 
         self.assertEqual(result.exit_code, 0)
-        self.assertIn("Vault Information", result.stdout)
+        self.assertIn("OBSIDIAN VAULT INFORMATION", result.stdout)
 
     @patch("subprocess.call")
     def test_journal_command(self, mock_subprocess):
@@ -352,7 +353,7 @@ blacklist = ["temp/", "cache/"]
     def test_vault_required_error(self):
         """Test that missing vault path triggers proper error handling."""
         # Mock Configuration to return None vault
-        with patch("obsidian_cli.utils.Configuration.from_path") as mock_config:
+        with patch("obsidian_cli.configuration.Configuration.from_path") as mock_config:
             mock_config.return_value = (False, Configuration(vault=None))
 
             result = self.runner.invoke(cli, ["info"])
@@ -448,7 +449,7 @@ blacklist = ["temp/", "cache/"]
         result = self.run_cli_command(["info"])
 
         self.assertEqual(result.exit_code, 0)
-        self.assertIn("Vault Information", result.stdout)
+        self.assertIn("OBSIDIAN VAULT INFORMATION", result.stdout)
 
         # Test ls command on empty vault
         result = self.run_cli_command(["ls"])
@@ -495,7 +496,8 @@ blacklist = ["temp/", "cache/"]
 
     def test_blacklist_functionality_comprehensive(self):
         """Comprehensive test to verify blacklist functionality works correctly."""
-        from obsidian_cli.main import Configuration, State
+        from obsidian_cli.configuration import Configuration
+        from obsidian_cli.main import State
 
         # Test blacklist function
         blacklist = ["Assets/", ".obsidian/", ".git/"]
@@ -524,7 +526,7 @@ blacklist = ["temp/", "cache/"]
 
     def test_configuration_backward_compatibility(self):
         """Test that old 'ignored_directories' config still works."""
-        from obsidian_cli.main import Configuration
+        from obsidian_cli.configuration import Configuration
 
         # Simulate loading config with old 'ignored_directories' key
         test_config_data = {

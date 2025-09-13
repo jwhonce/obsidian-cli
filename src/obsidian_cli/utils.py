@@ -1,69 +1,22 @@
-from __future__ import annotations
-
 import json
-import tomllib
 from collections import defaultdict
 from contextlib import suppress
-from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Any
 
 import frontmatter
 import humanize
 import typer
-from click import FileError
 from rich.console import Console
 from rich.markup import escape
 from rich.padding import Padding
 from rich.table import Table
 
+from .exceptions import ObsidianFileError
+
 if TYPE_CHECKING:
     from .main import State
-
-
-class ObsidianFileError(FileError):
-    """Project-specific FileError with enhanced functionality.
-
-    Encapsulates click.FileError with improved handling of file paths, messages,
-    and exit codes for obsidian-cli specific operations.
-
-    Attributes:
-        file_path: Path to the file that caused the error
-        message: Human-readable error message
-        exit_code: Exit code to use when this error causes program termination
-
-    Example:
-        >>> error = ObsidianFileError("config.toml", "Configuration file not found", 12)
-        >>> raise error
-    """
-
-    def __init__(self, file_path: Union[str, Path], message: Optional[str], exit_code: int = 12):
-        """Initialize the ObsidianFileError.
-
-        Args:
-            file_path: Path to the file that caused the error (str or Path)
-            message: Human-readable error message describing the issue
-            exit_code: Exit code to use when this error terminates the program (default: 12)
-        """
-        # Call parent FileError constructor
-        super().__init__(str(file_path), message)
-
-        # Store additional attributes from grandparent Exception
-        self.exit_code = exit_code
-
-    def __str__(self) -> str:
-        """Return a formatted error message."""
-        return f"{self.message}: {self.ui_filename}"
-
-    def __repr__(self) -> str:
-        """Return a detailed representation for debugging."""
-        return (
-            f"ObsidianFileError("
-            f"filename={self.ui_filename!r}, "
-            f"message={self.message!r}, "
-            f"exit_code={self.exit_code})"
-        )
 
 
 def _check_filename_match(file_stem: str, search_name: str, exact_match: bool) -> bool:
@@ -303,7 +256,7 @@ def _display_vault_info(vault_info: dict[str, Any]) -> None:
     console = Console()
 
     # Title
-    console.print("\n[bold blue]Obsidian Vault Information[/bold blue]\n")
+    console.print("\n[bold blue]OBSIDIAN VAULT INFORMATION[/bold blue]\n")
 
     # Vault Summary Table
     summary_table = Table(
@@ -314,7 +267,7 @@ def _display_vault_info(vault_info: dict[str, Any]) -> None:
         title_justify="left",
     )
     summary_table.add_column("Property", style="cyan", width=20)
-    summary_table.add_column("Value", style="black")
+    summary_table.add_column("Value", style="white")
 
     summary_table.add_row("Path", vault_info["vault_path"])
     summary_table.add_row("Total Directories", str(vault_info["total_directories"]))
@@ -325,13 +278,13 @@ def _display_vault_info(vault_info: dict[str, Any]) -> None:
     # File Types Table
     if vault_info.get("file_type_stats"):
         # Print title without padding (hangs left of table)
-        console.print("[bold]Vault File Types by Extension[/bold]")
+        console.print("[bold italic]Vault File Types by Extension[/italic bold]")
 
         file_table = Table(show_header=True, header_style="bold magenta", border_style="blue")
         file_table.add_column("Extension", style="green", width=15)
         file_table.add_column("Count", justify="right", style="yellow", width=10)
         file_table.add_column("Size", justify="right", style="cyan", width=12)
-        file_table.add_column("Percentage", justify="right", style="black", width=12)
+        file_table.add_column("Percentage", justify="right", style="white", width=12)
 
         total_files = vault_info["total_files"]
         for ext, stats in sorted(vault_info["file_type_stats"].items()):
@@ -368,7 +321,7 @@ def _display_vault_info(vault_info: dict[str, Any]) -> None:
     )
 
     config_table.add_column("Setting", style="cyan", width=20)
-    config_table.add_column("Value", style="black", no_wrap=False)
+    config_table.add_column("Value", style="white", no_wrap=False)
 
     config_table.add_row("Vault Blacklist", vault_info["blacklist"])
     config_table.add_row("Config Dirs", vault_info["config_dirs"])
@@ -584,111 +537,4 @@ def _update_metadata_key(
         typer.echo(f"Updated '{key}': '{value}' in {filename}")
 
 
-@dataclass(frozen=True)
-class Configuration:
-    """Record configuration for obsidian-cli application.
-
-    Default order of precedence:
-    - user-specified path(s) via --config option
-    - ./obsidian-cli.toml (current directory)
-    - ~/.config/obsidian-cli/config.toml (user's config directory)
-    - Hand-coded defaults
-
-    Note: This class assumes logging is not configured.
-    """
-
-    blacklist: list[str] = field(default_factory=lambda: ["Assets/", ".obsidian/", ".git/"])
-    config_dirs: list[str] = field(
-        default_factory=lambda: [
-            "obsidian-cli.toml",
-            str(Path(typer.get_app_dir("obsidian-cli")) / "config.toml"),
-            str(Path.home() / ".config" / "obsidian-cli" / "config.toml"),
-        ]
-    )
-    editor: Path = field(default_factory=lambda: Path("vi"))
-    ident_key: str = field(default="uid")
-    journal_template: str = field(
-        default="Calendar/{year}/{month:02d}/{year}-{month:02d}-{day:02d}"
-    )
-    vault: Optional[Path] = field(default=None)
-    verbose: bool = field(default=False)
-
-    @classmethod
-    def from_path(
-        cls, path: Optional[str] = None, verbose: bool = False
-    ) -> Tuple[bool, "Configuration"]:
-        """Load configuration from a TOML file or colon-separated list of files.
-
-        Returns:
-            Tuple[bool, Configuration]: (
-                True if config was read from file,
-                False if using defaults,
-                Configuration
-            )
-        """
-
-        # Initialize default configuration
-        default = cls()
-
-        config_found = False
-        config_data = {}
-        if path:
-            # Handle colon-separated paths (OBSIDIAN_CONFIG_DIRS)
-            for entry in path.split(":"):
-                try:
-                    p = Path(entry.strip())  # Strip whitespace from each entry
-                    config_data = cls._load_toml_config(p, verbose)
-                    config_found = True
-                    break
-                except ObsidianFileError:
-                    continue
-            if not config_data.keys():
-                raise ObsidianFileError(path, "Provided configuration file(s) not found")
-        else:
-            # Search default locations
-            for entry in default.config_dirs:
-                with suppress(ObsidianFileError):
-                    config_data = cls._load_toml_config(Path(entry), verbose)
-                    config_found = True
-                    break
-
-        return (
-            config_found,
-            cls(
-                blacklist=config_data.get(
-                    "blacklist", config_data.get("ignored_directories", default.blacklist)
-                ),
-                editor=Path(config_data.get("editor", default.editor)),
-                ident_key=config_data.get("ident_key", default.ident_key),
-                journal_template=config_data.get("journal_template", default.journal_template),
-                vault=Path(config_data["vault"]) if config_data.get("vault") else None,
-                verbose=config_data.get("verbose", default.verbose),
-            ),
-        )
-
-    @staticmethod
-    def _load_toml_config(path: Path, verbose: bool = False) -> Union[dict[str, Any] | None]:
-        """Load TOML configuration from the specified path or default locations.
-
-        Args:
-            path: Specific config file path
-            verbose: Whether to print parsing messages
-
-        Returns:
-            dict: Configuration dictionary
-
-        Raises:
-            ObsidianFileError: When configuration file is not found
-        """
-        if not path.exists():
-            raise ObsidianFileError(path, "Configuration file not found")
-
-        if verbose:
-            typer.echo(f"Parsing configuration from: {path}")
-
-        try:
-            with open(path, "rb") as f:
-                return tomllib.load(f)
-        except tomllib.TOMLDecodeError as e:
-            typer.secho(f"Error parsing {path}: {e}", err=True, fg=typer.colors.RED)
-            raise
+# Configuration class has been moved to configuration.py
