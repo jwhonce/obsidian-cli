@@ -4,8 +4,6 @@ This module contains shared type definitions that are used across multiple modul
 to avoid circular imports and code duplication.
 """
 
-from functools import partial
-import functools
 import tomllib
 from contextlib import suppress
 from dataclasses import dataclass, field
@@ -102,7 +100,7 @@ class Configuration:
             )
         """
 
-        # Instantiate default configuration values
+        # Instantiate default configuration to populate values
         default = cls()
 
         config_found = False
@@ -112,13 +110,10 @@ class Configuration:
             config_found = True
         else:
             # Resolve config paths in order of precedence
-            paths = []
-            for entry in default.config_dirs:
-                path = Path(entry)
-                if path == Path.cwd():
-                    paths.append(path / ".obsidian-cli.toml")
-                else:
-                    paths.append(path / "config.toml")
+            paths = [
+                Path(entry) / (".obsidian-cli.toml" if Path(entry) == Path.cwd() else "config.toml")
+                for entry in default.config_dirs
+            ]
 
             for entry in paths:
                 with suppress(ObsidianFileError):

@@ -131,7 +131,7 @@ except Exception:  # pylint: disable=broad-except
     try:
         from . import __version__
     except Exception:  # pylint: disable=broad-except
-        __version__ = "0.1.20"  # Fallback version
+        __version__ = "0.1.21"  # Fallback version
 
 
 # Initialize Typer app
@@ -159,20 +159,25 @@ def main(
     vault: Annotated[
         Optional[Path],
         typer.Option(
+            envvar="OBSIDIAN_VAULT",
             help="Path to the Obsidian vault",
         ),
     ] = None,
     config: Annotated[
         Optional[Path],
         typer.Option(
-            help=("Configuration file to read configuration from."),
+            dir_okay=False,
+            envvar="OBSIDIAN_CONFIG",
             exists=True,
+            file_okay=True,
+            help=("Configuration file to read configuration from."),
         ),
     ] = None,
     blacklist: Annotated[
         Optional[str],
         typer.Option(
             "--blacklist",
+            envvar="OBSIDIAN_BLACKLIST",
             help=(
                 "Colon-separated list of directories to ignore. [default: Assets/:.obsidian/:.git/]"
             ),
@@ -192,6 +197,7 @@ def main(
         typer.Option(
             "--verbose",
             "-v",
+            envvar="OBSIDIAN_VERBOSE",
             help="Enable verbose output",
             show_default=False,
         ),

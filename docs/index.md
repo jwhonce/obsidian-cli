@@ -1,6 +1,6 @@
 # Obsidian CLI Documentation
 
-Welcome to the documentation for obsidian-cli v0.1.14, a command-line interface for interacting with
+Welcome to the documentation for obsidian-cli v0.1.21, a command-line interface for interacting with
 Obsidian vaults.
 
 ## Overview
@@ -30,7 +30,7 @@ reliable foundation for vault automation and AI integration.
 - **Vault information** - comprehensive vault statistics and configuration details
 - **Flexible configuration** - TOML config files with environment variable support
 - **Force options** - advanced operations and automation capabilities
-- **AI Integration** - Production-ready MCP server for seamless AI assistant integration
+- **AI Integration** - Production-ready MCP server with rich response metadata for seamless AI assistant integration
 - **Comprehensive testing** - 78% test coverage with 117 tests ensuring reliability
 - **Cross-platform compatibility** - Works consistently across different environments
 

@@ -9,7 +9,7 @@ The Obsidian CLI codebase is organized into the following modules:
 - **`configuration.py`** - Configuration class and TOML file handling
 - **`exceptions.py`** - Project-specific exception classes 
 - **`main.py`** - CLI commands, State class, and main application logic
-- **`mcp_server.py`** - Model Context Protocol server functionality
+- **`mcp_server.py`** - Model Context Protocol server functionality with metadata-enhanced responses
 - **`utils.py`** - Utility functions for file operations, display, and vault management
 
 ## Classes
@@ -323,6 +323,61 @@ Get comprehensive vault information as structured data.
 - `version` (str): Application version
 
 **Error Handling**: Returns error information if vault doesn't exist
+
+## MCP Server Response Metadata
+
+**Location**: `src/obsidian_cli/mcp_server.py`
+
+All MCP server tool responses include structured metadata in the `_meta` field of `TextContent` objects. This provides programmatic access to operation details, status information, and contextual data.
+
+### Common Metadata Fields
+
+All responses include these standard fields:
+
+- `operation` (str): The operation performed (`"create_note"`, `"find_notes"`, `"get_note_content"`, `"get_vault_info"`)
+- `status` (str): Operation status (`"success"` or `"error"`)
+
+### Operation-Specific Fields
+
+#### create_note Metadata
+
+**Success Response:**
+- `filename` (str): Created filename with .md extension
+
+**Error Response:**
+- `filename` (str): Attempted filename
+- `exit_code` (str): Typer exit code when available
+
+#### find_notes Metadata
+
+- `term` (str): Search term used
+- `exact` (bool): Whether exact matching was used
+- `result_count` (int): Number of files found
+
+#### get_note_content Metadata
+
+- `filename` (str): Requested filename
+- `show_frontmatter` (bool): Whether frontmatter was requested
+- `exit_code` (str): Typer exit code for errors
+
+#### get_vault_info Metadata
+
+No operation-specific fields beyond the common metadata.
+
+### Usage Examples
+
+```python
+# Accessing metadata in Python MCP client
+result = await session.call_tool("find_notes", {"term": "project"})
+metadata = result.content[0]._meta
+
+operation = metadata["operation"]  # "find_notes"
+status = metadata["status"]        # "success" or "error"
+count = metadata["result_count"]   # Number of results found
+
+if status == "error" and "exit_code" in metadata:
+    handle_error(metadata["exit_code"])
+```
 
 ## Constants and Enums
 

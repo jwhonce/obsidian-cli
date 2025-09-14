@@ -334,7 +334,7 @@ This is the content.""")
                 result = await handle_get_vault_info(self.ctx, self.state, args)
 
                 self.assertEqual(len(result), 1)
-                self.assertIn("Error getting vault info", result[0].text)
+                self.assertIn("Error retrieving vault information", result[0].text)
                 self.assertIn("Info error", result[0].text)
 
         asyncio.run(run_test())
