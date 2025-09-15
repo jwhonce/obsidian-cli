@@ -28,6 +28,8 @@ class TestMCPServerComprehensive(unittest.TestCase):
         self.temp_dir = tempfile.TemporaryDirectory()
         self.vault_path = Path(self.temp_dir.name) / "test_vault"
         self.vault_path.mkdir()
+        # Create .obsidian directory to make it a valid Obsidian vault
+        (self.vault_path / ".obsidian").mkdir()
 
         self.state = State(
             editor=Path("vi"),

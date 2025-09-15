@@ -9,12 +9,19 @@ import io
 import sys
 from contextlib import redirect_stdout
 from pathlib import Path
+from typing import Any
 from unittest.mock import patch
 
 import typer
 
 from . import __version__
-from .utils import _format_file_size, _get_vault_info
+from .types import MCPOperation, State
+from .utils import (
+    _create_mcp_error_response,
+    _create_mcp_response,
+    _format_file_size,
+    _get_vault_info,
+)
 
 # MCP imports with error handling
 try:
@@ -27,7 +34,7 @@ except ImportError as e:
     ) from e
 
 
-async def serve_mcp(ctx: typer.Context, state) -> None:
+async def serve_mcp(ctx: typer.Context, state: State) -> None:
     """Start the MCP server with the given configuration.
 
     Args:
@@ -130,16 +137,14 @@ async def serve_mcp(ctx: typer.Context, state) -> None:
         await server.run(read_stream, write_stream, init_options)
 
 
-async def handle_create_note(ctx: typer.Context, state, args: dict) -> list:
+async def handle_create_note(ctx: typer.Context, state: State, args: dict[str, Any]) -> list:
     """Create a new note in the vault."""
     filename = args["filename"]
     content = args.get("content", "")
     force = args.get("force", False)
 
-    _meta = {
-        "operation": "create_note",
-        "filename": f"{filename}.md" if not filename.endswith(".md") else filename,
-    }
+    # Normalize filename for metadata
+    normalized_filename = f"{filename}.md" if not filename.endswith(".md") else filename
 
     try:
         # Import inside function to avoid circular import (main.py imports serve_mcp)
@@ -164,52 +169,38 @@ async def handle_create_note(ctx: typer.Context, state, args: dict) -> list:
             new(ctx, filename_path, force=force)
 
         success_msg = f"Successfully created note: {filename_path.with_suffix('.md')}"
-        return [
-            TextContent(
-                type="text",
-                text=success_msg,
-                _meta=_meta | {"status": "success"},
-            )
-        ]
+        return _create_mcp_response(
+            success_msg, MCPOperation.CREATE_NOTE, filename=normalized_filename
+        )
 
     except typer.Exit as e:
-        _meta |= {"exit_code": str(e.exit_code), "status": "error"}
-
         # Handle typer exits (like file already exists)
         if e.exit_code == 1:
-            return [
-                TextContent(
-                    type="text",
-                    text=f"File {filename}.md already exists. Use force=true to overwrite.",
-                    _meta=_meta,
-                )
-            ]
-        else:
-            return [
-                TextContent(
-                    type="text", text=f"Command exited with code {e.exit_code}", _meta=_meta
-                )
-            ]
-    except Exception as e:
-        return [
-            TextContent(
-                type="text",
-                text=f"Failed to create note: {str(e)}",
-                _meta=_meta | {"status": "error"},
+            return _create_mcp_error_response(
+                f"File {filename}.md already exists. Use force=true to overwrite.",
+                MCPOperation.CREATE_NOTE,
+                filename=normalized_filename,
+                exit_code=str(e.exit_code),
             )
-        ]
+        else:
+            return _create_mcp_error_response(
+                f"Command exited with code {e.exit_code}",
+                MCPOperation.CREATE_NOTE,
+                filename=normalized_filename,
+                exit_code=str(e.exit_code),
+            )
+    except Exception as e:
+        return _create_mcp_error_response(
+            f"Failed to create note: {str(e)}",
+            MCPOperation.CREATE_NOTE,
+            filename=normalized_filename,
+        )
 
 
-async def handle_find_notes(ctx: typer.Context, state, args: dict) -> list:
+async def handle_find_notes(ctx: typer.Context, state: State, args: dict[str, Any]) -> list:
     """Find notes by name or title."""
     term = args["term"]
     exact = args.get("exact", False)
-
-    _meta = {
-        "operation": "find_notes",
-        "term": term,
-        "exact": exact,
-    }
 
     try:
         # Import inside function to avoid circular import (main.py imports serve_mcp)
@@ -219,44 +210,31 @@ async def handle_find_notes(ctx: typer.Context, state, args: dict) -> list:
         matches = _find_matching_files(vault_path, term, exact)
 
         if not matches:
-            return [
-                TextContent(
-                    type="text",
-                    text=f"No files found matching '{term}'",
-                    _meta=_meta | {"status": "success", "result_count": 0},
-                )
-            ]
+            return _create_mcp_response(
+                f"No files found matching '{term}'",
+                MCPOperation.FIND_NOTES,
+                term=term,
+                exact=exact,
+                result_count=0,
+            )
 
         file_list = "\n".join(f"- {match}" for match in matches)
         result = f"Found {len(matches)} file(s) matching '{term}':\n{file_list}\n"
 
-        return [
-            TextContent(
-                type="text",
-                text=result,
-                _meta=_meta | {"status": "success", "result_count": len(matches)},
-            )
-        ]
+        return _create_mcp_response(
+            result, MCPOperation.FIND_NOTES, term=term, exact=exact, result_count=len(matches)
+        )
+
     except Exception as e:
-        return [
-            TextContent(
-                type="text",
-                text=f"Error finding notes: {str(e)}",
-                _meta=_meta | {"status": "error"},
-            )
-        ]
+        return _create_mcp_error_response(
+            f"Error finding notes: {str(e)}", MCPOperation.FIND_NOTES, term=term, exact=exact
+        )
 
 
-async def handle_get_note_content(ctx: typer.Context, state, args: dict) -> list:
+async def handle_get_note_content(ctx: typer.Context, state: State, args: dict[str, Any]) -> list:
     """Get the content of a specific note."""
     filename = args["filename"]
     show_frontmatter = args.get("show_frontmatter", False)
-
-    _meta = {
-        "operation": "get_note_content",
-        "filename": filename,
-        "show_frontmatter": show_frontmatter,
-    }
 
     try:
         # Import inside function to avoid circular import (main.py imports serve_mcp)
@@ -273,64 +251,54 @@ async def handle_get_note_content(ctx: typer.Context, state, args: dict) -> list
             cat(ctx, filename_path, show_frontmatter=show_frontmatter)
 
         content = output_buffer.getvalue()
-        return [TextContent(type="text", text=content, _meta=_meta | {"status": "success"})]
+        return _create_mcp_response(
+            content,
+            MCPOperation.GET_NOTE_CONTENT,
+            filename=filename,
+            show_frontmatter=show_frontmatter,
+        )
 
     except typer.Exit as e:
         # Handle typer exits (like file not found)
         if e.exit_code == 2:
-            return [
-                TextContent(
-                    type="text",
-                    text=f"File not found: {filename}",
-                    _meta=_meta | {"status": "error", "exit_code": str(e.exit_code)},
-                )
-            ]
-        else:
-            return [
-                TextContent(
-                    type="text",
-                    text=f"Error reading note: exit code {e.exit_code}",
-                    _meta=_meta | {"status": "error", "exit_code": str(e.exit_code)},
-                )
-            ]
-    except Exception as e:
-        return [
-            TextContent(
-                type="text",
-                text=f"Error reading note: {str(e)}",
-                _meta=_meta | {"status": "error"},
+            return _create_mcp_error_response(
+                f"File not found: {filename}",
+                MCPOperation.GET_NOTE_CONTENT,
+                filename=filename,
+                show_frontmatter=show_frontmatter,
+                exit_code=str(e.exit_code),
             )
-        ]
+        else:
+            return _create_mcp_error_response(
+                f"Error reading note: exit code {e.exit_code}",
+                MCPOperation.GET_NOTE_CONTENT,
+                filename=filename,
+                show_frontmatter=show_frontmatter,
+                exit_code=str(e.exit_code),
+            )
+    except Exception as e:
+        return _create_mcp_error_response(
+            f"Error reading note: {str(e)}",
+            MCPOperation.GET_NOTE_CONTENT,
+            filename=filename,
+            show_frontmatter=show_frontmatter,
+        )
 
 
-async def handle_get_vault_info(ctx: typer.Context, state, args: dict) -> list:
+async def handle_get_vault_info(ctx: typer.Context, state: State, args: dict[str, Any]) -> list:
     """Get information about the vault."""
-
-    _meta = {
-        "operation": "get_vault_info",
-    }
 
     try:
         vault_info = _get_vault_info(state)
         if vault_info.get("error"):
-            return [
-                TextContent(
-                    type="text", text=vault_info["error"], _meta=_meta | {"status": "error"}
-                )
-            ]
+            return _create_mcp_error_response(vault_info["error"], MCPOperation.GET_VAULT_INFO)
     except Exception as e:
-        return [
-            TextContent(
-                type="text",
-                text=f"Error retrieving vault information: {str(e)}",
-                _meta=_meta | {"status": "error"},
-            )
-        ]
+        return _create_mcp_error_response(
+            f"Error retrieving vault information: {str(e)}", MCPOperation.GET_VAULT_INFO
+        )
 
     if not vault_info["exists"]:
-        return [
-            TextContent(type="text", text=vault_info["error"], _meta=_meta | {"status": "error"})
-        ]
+        return _create_mcp_error_response(vault_info["error"], MCPOperation.GET_VAULT_INFO)
 
     # Build file type statistics section
     try:
@@ -363,20 +331,12 @@ async def handle_get_vault_info(ctx: typer.Context, state, args: dict) -> list:
             f"- Version: {vault_info['version']}\n"
         )
     except KeyError as e:
-        return [
-            TextContent(
-                type="text",
-                text=f"Error: Missing vault info key: {str(e)}",
-                _meta=_meta | {"status": "error"},
-            )
-        ]
+        return _create_mcp_error_response(
+            f"Error: Missing vault info key: {str(e)}", MCPOperation.GET_VAULT_INFO
+        )
     except Exception as e:
-        return [
-            TextContent(
-                type="text",
-                text=f"Error formatting vault information: {str(e)}",
-                _meta=_meta | {"status": "error"},
-            )
-        ]
+        return _create_mcp_error_response(
+            f"Error formatting vault information: {str(e)}", MCPOperation.GET_VAULT_INFO
+        )
 
-    return [TextContent(type="text", text=info, _meta=_meta | {"status": "success"})]
+    return _create_mcp_response(info, MCPOperation.GET_VAULT_INFO)

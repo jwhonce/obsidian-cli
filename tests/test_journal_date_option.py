@@ -16,6 +16,8 @@ class TestJournalDateOption(unittest.TestCase):
         with self.runner.isolated_filesystem():
             vault = Path("vault").resolve()
             vault.mkdir(parents=True, exist_ok=True)
+            # Create .obsidian directory to make it a valid Obsidian vault
+            (vault / ".obsidian").mkdir()
             # Create the expected journal file for 2024-02-03 based on default template
             expected_path = Path("Calendar/2024/02/2024-02-03.md")
             (vault / expected_path).parent.mkdir(parents=True, exist_ok=True)
@@ -33,6 +35,8 @@ class TestJournalDateOption(unittest.TestCase):
         with self.runner.isolated_filesystem():
             vault = Path("vault").resolve()
             vault.mkdir()
+            # Create .obsidian directory to make it a valid Obsidian vault
+            (vault / ".obsidian").mkdir()
             # Mock subprocess.run to avoid editor launch
             with patch("subprocess.run", return_value=None):
                 result = self.runner.invoke(
@@ -49,6 +53,8 @@ class TestJournalDateOption(unittest.TestCase):
         with self.runner.isolated_filesystem():
             vault = Path("vault").resolve()
             vault.mkdir(parents=True, exist_ok=True)
+            # Create .obsidian directory to make it a valid Obsidian vault
+            (vault / ".obsidian").mkdir()
             # Create today's expected journal file based on default template variables
             # Compute directory structure consistent with default template
             from datetime import datetime
@@ -68,6 +74,8 @@ class TestJournalDateOption(unittest.TestCase):
         with self.runner.isolated_filesystem():
             vault = Path("vault").resolve()
             vault.mkdir()
+            # Create .obsidian directory to make it a valid Obsidian vault
+            (vault / ".obsidian").mkdir()
 
             # These formats are rejected by datetime.strptime("%Y-%m-%d")
             invalid_dates = [
@@ -108,6 +116,8 @@ class TestJournalDateOption(unittest.TestCase):
         with self.runner.isolated_filesystem():
             vault = Path("vault").resolve()
             vault.mkdir()
+            # Create .obsidian directory to make it a valid Obsidian vault
+            (vault / ".obsidian").mkdir()
 
             # These dates are valid to Python's parser but non-standard format
             potentially_problematic_dates = [
@@ -134,6 +144,8 @@ class TestJournalDateOption(unittest.TestCase):
         with self.runner.isolated_filesystem():
             vault = Path("vault").resolve()
             vault.mkdir()
+            # Create .obsidian directory to make it a valid Obsidian vault
+            (vault / ".obsidian").mkdir()
 
             # Mock subprocess.run to avoid editor launch
             with patch("subprocess.run", return_value=None):
@@ -153,6 +165,8 @@ class TestJournalDateOption(unittest.TestCase):
         with self.runner.isolated_filesystem():
             vault = Path("vault").resolve()
             vault.mkdir()
+            # Create .obsidian directory to make it a valid Obsidian vault
+            (vault / ".obsidian").mkdir()
 
             edge_case_dates = [
                 "2024-01-01",  # New Year's Day
@@ -188,6 +202,8 @@ class TestJournalDateOption(unittest.TestCase):
         with self.runner.isolated_filesystem():
             vault = Path("vault").resolve()
             vault.mkdir()
+            # Create .obsidian directory to make it a valid Obsidian vault
+            (vault / ".obsidian").mkdir()
 
             # If journal command used BadParameter, this would be the expected behavior:
             # result = self.runner.invoke(
@@ -195,7 +211,7 @@ class TestJournalDateOption(unittest.TestCase):
             #     ["--vault", str(vault), "journal", "--date", "invalid-date"],
             # )
             # self.assertEqual(result.exit_code, 2)  # BadParameter exit code
-            # self.assertIn("Invalid --date format", result.output)  # User-visible error
+            # self.assertIn("invalid --date format", result.output)  # User-visible error
             # self.assertIn("--date", result.output)  # Parameter context
             # self.assertIn("Usage:", result.output)  # Usage help
 
@@ -207,6 +223,6 @@ class TestJournalDateOption(unittest.TestCase):
                     ["--vault", str(vault), "journal", "--date", "invalid-date"],
                 )
                 self.assertEqual(result.exit_code, 2)  # BadParameter exit code
-                self.assertIn("Invalid --date format", result.output)  # User-visible error
+                self.assertIn("invalid --date format", result.output)  # User-visible error
                 self.assertIn("--date", result.output)  # Parameter context
                 self.assertIn("Usage:", result.output)  # Usage help

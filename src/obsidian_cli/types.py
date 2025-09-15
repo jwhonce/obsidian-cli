@@ -7,6 +7,7 @@ to avoid circular imports and code duplication.
 import tomllib
 from contextlib import suppress
 from dataclasses import dataclass, field
+from enum import StrEnum
 from pathlib import Path
 from typing import Annotated, Any, Optional, Tuple
 
@@ -14,12 +15,6 @@ import typer
 from typing_extensions import Doc
 
 from .exceptions import ObsidianFileError
-
-# Common type for page/file arguments used across commands
-PAGE_FILE = Annotated[
-    Annotated[Path, typer.Argument(help="Obsidian page name or Path to file")],
-    Doc("Obsidian page name or Path to markdown file."),
-]
 
 
 @dataclass(frozen=True)
@@ -160,6 +155,87 @@ class Configuration:
             raise
         except FileNotFoundError as e:
             raise ObsidianFileError(path, "Configuration file not found") from e
+
+
+# MCP (Model Context Protocol) related types
+class MCPOperation(StrEnum):
+    """MCP operation types."""
+
+    CREATE_NOTE = "create_note"
+    FIND_NOTES = "find_notes"
+    GET_NOTE_CONTENT = "get_note_content"
+    GET_VAULT_INFO = "get_vault_info"
+
+
+class MCPStatus(StrEnum):
+    """MCP response status types."""
+
+    SUCCESS = "success"
+    ERROR = "error"
+
+
+# Common type for page/file arguments used across commands
+PAGE_FILE = Annotated[
+    Annotated[Path, typer.Argument(help="Obsidian page name or Path to file")],
+    Doc("Obsidian page name or Path to markdown file."),
+]
+
+
+class QueryOutputStyle(StrEnum):
+    """Enumeration of available output formats for the query command.
+
+    This enum defines the different ways query results can be displayed to the user.
+    Each style provides a different level of detail and formatting appropriate for
+    different use cases.
+
+    Attributes:
+        JSON: Output results as structured JSON with full frontmatter metadata.
+              Includes file path, complete frontmatter, and queried value.
+              Best for programmatic processing and data exchange.
+
+        PATH: Output only the relative file paths of matching files.
+              Minimal output format, one path per line.
+              Best for simple file listing and shell scripting.
+
+        TABLE: Output results in a formatted table with columns for Path, Property, and Value.
+               Shows all frontmatter properties for each matching file.
+               Best for human-readable overview of file metadata.
+
+        TITLE: Output file paths with their titles from frontmatter.
+               Format: "path: title" (falls back to filename if no title).
+               Best for quick identification of files by their titles.
+
+    Example:
+        # PATH format
+        notes/project-a.md
+        notes/project-b.md
+
+        # TITLE format
+        notes/project-a.md: Project Alpha Documentation
+        notes/project-b.md: Project Beta Planning
+
+        # TABLE format (rich table with headers)
+        ┌─────────────────────┬──────────┬─────────────────┐
+        │ Path                │ Property │ Value           │
+        ├─────────────────────┼──────────┼─────────────────┤
+        │ notes/project-a.md  │ title    │ Project Alpha   │
+        │                     │ tags     │ [dev, docs]     │
+        └─────────────────────┴──────────┴─────────────────┘
+
+        # JSON format
+        [
+          {
+            "path": "notes/project-a.md",
+            "frontmatter": {"title": "Project Alpha", "tags": ["dev", "docs"]},
+            "value": ["dev", "docs"]
+          }
+        ]
+    """
+
+    JSON = "json"
+    PATH = "path"
+    TABLE = "table"
+    TITLE = "title"
 
 
 @dataclass(frozen=True)

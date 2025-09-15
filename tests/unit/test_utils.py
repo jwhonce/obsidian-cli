@@ -5,7 +5,7 @@ import unittest
 import uuid
 from pathlib import Path
 
-import click
+import typer
 
 from obsidian_cli.main import _resolve_path
 
@@ -34,5 +34,5 @@ class TestUtils(unittest.TestCase):
             vault_path = Path(tmp_dir)
             file_path = Path(f"{uuid.uuid4()}.md")  # Random filename that doesn't exist
 
-            with self.assertRaises(click.FileError):
+            with self.assertRaises(typer.BadParameter):
                 _resolve_path(file_path, vault_path)

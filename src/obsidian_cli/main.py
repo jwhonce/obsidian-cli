@@ -87,7 +87,7 @@ License: Apache License 2.0
 
 import asyncio
 import importlib.metadata
-import shutil
+import os
 import signal
 import sys
 import tomllib
@@ -95,7 +95,6 @@ import traceback
 import uuid
 from asyncio import CancelledError
 from datetime import datetime
-from enum import StrEnum
 from pathlib import Path
 from shutil import get_terminal_size
 from typing import Annotated, Optional
@@ -107,7 +106,7 @@ from mdutils.mdutils import MdUtils  # type: ignore[import-untyped]
 
 from .exceptions import ObsidianFileError
 from .mcp_server import serve_mcp
-from .types import PAGE_FILE, Configuration, State
+from .types import PAGE_FILE, Configuration, QueryOutputStyle, State
 from .utils import (
     _check_if_path_blacklisted,
     _display_find_results,
@@ -244,7 +243,7 @@ def main(
         if vault is None:
             raise typer.BadParameter(
                 (
-                    "Vault path is required."
+                    "vault path is required."
                     " Use --vault option, OBSIDIAN_VAULT environment variable,"
                     " or specify 'vault' in a configuration file."
                 ),
@@ -253,9 +252,31 @@ def main(
             )
     vault = vault.expanduser().resolve()
 
+    # Validate that the vault directory exists and contains .obsidian folder
+    if not vault.exists():
+        raise typer.BadParameter(
+            f"vault directory does not exist: {vault}",
+            ctx=ctx,
+            param_hint="--vault",
+        )
+
+    if not vault.is_dir():
+        raise typer.BadParameter(
+            f"vault path must be a directory: {vault}",
+            ctx=ctx,
+            param_hint="--vault",
+        )
+
+    obsidian_config_dir = vault / ".obsidian"
+    if not obsidian_config_dir.exists():
+        raise typer.BadParameter(
+            f"invalid Obsidian vault: missing .obsidian directory in {vault}",
+            ctx=ctx,
+            param_hint="--vault",
+        )
+
     if editor is None:
         editor = configuration.editor
-    editor = shutil.which(editor)
 
     # Get blacklist directories from command line, config, or defaults
     # (in order of precedence)
@@ -305,26 +326,30 @@ def add_uid(
 ) -> None:
     """Add a unique ID to a page's frontmatter if it doesn't already have one."""
     state: State = ctx.obj
-
-    # While the short cut of using Obsidian page names is convenient, it implies
-    #  we cannot use typer helpers to enforce validation.
     filename = _resolve_path(page_or_path, state.vault)
     post = _get_frontmatter(filename)
 
     # Check if UID already exists (outside try block since this is intentional control flow)
     if state.ident_key in post.metadata and not force:
-        typer.secho(
-            f"Page '{page_or_path}' already has UID: {post.metadata[state.ident_key]}",
-            err=True,
-            fg=typer.colors.RED,
-        )
         if state.verbose:
-            typer.echo("Use --force to replace value of existing UID.")
-        raise typer.Exit(code=1)
+            typer.secho(
+                f"Use --force to replace value of existing {state.ident_key}.",
+                err=True,
+                fg=typer.colors.YELLOW,
+            )
+
+        raise typer.BadParameter(
+            (
+                f"Page '{page_or_path}' already has"
+                f" {{'{state.ident_key}': '{post.metadata[state.ident_key]}'}}"
+            ),
+            ctx=ctx,
+            param_hint="force",
+        )
 
     new_uuid = str(uuid.uuid4())
     if state.verbose:
-        typer.echo(f"Generated new UUID: {new_uuid}")
+        typer.echo(f"Generated new {{'{state.ident_key}': '{new_uuid}'}}")
 
     # Update frontmatter with the new UUID
     ctx.invoke(
@@ -384,16 +409,13 @@ def edit(ctx: typer.Context, page_or_path: PAGE_FILE) -> None:
         # Open the file in the configured editor
         subprocess.run([str(state.editor), str(filename)], check=True)
 
-    except FileNotFoundError:
-        typer.secho(
-            (
-                f"Error: '{state.editor}' command not found."
-                f" Please ensure {state.editor} is installed and in your PATH."
-            ),
-            err=True,
-            fg=typer.colors.RED,
-        )
-        raise typer.Exit(code=2) from None
+    except FileNotFoundError as e:
+        raise typer.BadParameter(
+            f"command '{state.editor}' not found. "
+            f" Ensure '{state.editor}' is installed and in your PATH={os.environ['PATH']}.",
+            ctx=ctx,
+            param_hint="--editor",
+        ) from e
     except subprocess.CalledProcessError as e:
         typer.secho(
             f"Editor '{state.editor}' exited with code {e.returncode} while editing {filename}",
@@ -481,7 +503,7 @@ def journal(
             dt = datetime.strptime(date, "%Y-%m-%d")
         except ValueError:
             raise typer.BadParameter(
-                "Invalid --date format. Use ISO format YYYY-MM-DD.", ctx=ctx, param_hint="--date"
+                "invalid --date format. Use ISO format YYYY-MM-DD.", ctx=ctx, param_hint="--date"
             ) from None
 
     # Build template variables from target date
@@ -558,14 +580,14 @@ def meta(
             _update_metadata_key(post, filename, key, value, state.verbose)
     except KeyError:
         typer.secho(
-            f"Property '{key}' not found in frontmatter of '{page_or_path}'",
+            f"Frontmatter metadata '{key}' not found in '{page_or_path}'",
             err=True,
             fg=typer.colors.RED,
         )
         raise typer.Exit(code=1) from None
     except Exception as e:
         typer.secho(
-            f"Error updating metadata key '{key}' in '{page_or_path}': {e}",
+            f"Error updating frontmatter metadata {{'{key}': '{value}'}} in '{page_or_path}': {e}",
             err=True,
             fg=typer.colors.RED,
         )
@@ -581,12 +603,14 @@ def new(
     """Create a new file in the Obsidian Vault."""
     state: State = ctx.obj
 
-    # We don't use _resolve_path() here since we expect the file to not exist yet
+    # We don't use _resolve_path() here since we expect the file to not exist
     filename = state.vault / page_or_path.with_suffix(".md")
-    if filename.exists():
+    is_overwrite = filename.exists()
+    if is_overwrite:
         if not force:
-            typer.secho(f"File already exists: {filename}", err=True, fg=typer.colors.RED)
-            raise typer.Exit(code=1)
+            raise typer.BadParameter(
+                f"File already exists: {filename}", ctx=ctx, param_hint="page_or_path"
+            )
 
         if state.verbose:
             typer.echo(f"Overwriting existing file: {filename}")
@@ -633,69 +657,13 @@ def new(
         typer.secho(f"Error writing file '{filename}': {e}", err=True, fg=typer.colors.RED)
         raise typer.Exit(code=1) from None
 
-    if state.verbose:
-        typer.echo(f"Created new file: {filename}")
-
     # Open file in editor (if not using stdin input)
     if sys.stdin.isatty():
         ctx.invoke(edit, ctx=ctx, page_or_path=page_or_path)
 
-
-class QueryOutputStyle(StrEnum):
-    """Enumeration of available output formats for the query command.
-
-    This enum defines the different ways query results can be displayed to the user.
-    Each style provides a different level of detail and formatting appropriate for
-    different use cases.
-
-    Attributes:
-        JSON: Output results as structured JSON with full frontmatter metadata.
-              Includes file path, complete frontmatter, and queried value.
-              Best for programmatic processing and data exchange.
-
-        PATH: Output only the relative file paths of matching files.
-              Minimal output format, one path per line.
-              Best for simple file listing and shell scripting.
-
-        TABLE: Output results in a formatted table with columns for Path, Property, and Value.
-               Shows all frontmatter properties for each matching file.
-               Best for human-readable overview of file metadata.
-
-        TITLE: Output file paths with their titles from frontmatter.
-               Format: "path: title" (falls back to filename if no title).
-               Best for quick identification of files by their titles.
-
-    Example:
-        # PATH format
-        notes/project-a.md
-        notes/project-b.md
-
-        # TITLE format
-        notes/project-a.md: Project Alpha Documentation
-        notes/project-b.md: Project Beta Planning
-
-        # TABLE format (rich table with headers)
-        ┌─────────────────────┬──────────┬─────────────────┐
-        │ Path                │ Property │ Value           │
-        ├─────────────────────┼──────────┼─────────────────┤
-        │ notes/project-a.md  │ title    │ Project Alpha   │
-        │                     │ tags     │ [dev, docs]     │
-        └─────────────────────┴──────────┴─────────────────┘
-
-        # JSON format
-        [
-          {
-            "path": "notes/project-a.md",
-            "frontmatter": {"title": "Project Alpha", "tags": ["dev", "docs"]},
-            "value": ["dev", "docs"]
-          }
-        ]
-    """
-
-    JSON = "json"
-    PATH = "path"
-    TABLE = "table"
-    TITLE = "title"
+    if state.verbose:
+        action = "Overwriting existing" if is_overwrite else "Created new"
+        typer.echo(f"{action} file: {filename}")
 
 
 @cli.command()
@@ -737,10 +705,10 @@ def query(
 
     # Check for conflicting options
     if value is not None and contains is not None:
-        typer.secho(
-            "Error: Cannot specify both --value and --contains", err=True, fg=typer.colors.RED
+        raise typer.BadParameter(
+            "cannot specify both --value and --contains options",
+            ctx=ctx,
         )
-        raise typer.Exit(code=1)
 
     if state.verbose:
         typer.echo(f"Searching for frontmatter key: {key}")
@@ -823,10 +791,8 @@ def rm(
 ) -> None:
     """Remove a file from the Obsidian Vault."""
     state: State = ctx.obj
-
     filename = _resolve_path(page_or_path, state.vault)
 
-    # Skip confirmation if force is True, otherwise ask for confirmation
     if not force and not typer.confirm(f"Are you sure you want to delete '{filename}'?"):
         typer.echo("Operation cancelled.")
         return

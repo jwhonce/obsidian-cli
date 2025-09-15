@@ -171,7 +171,10 @@ Content""")
             # The actual message includes the full path, so we check for the key parts
             mock_echo.assert_called()
             call_args = mock_echo.call_args[0][0]  # Get the first argument
-            self.assertIn("Updated 'author': 'Test Author'", call_args)
+            self.assertIn(
+                "Updated frontmatter metadata { 'author': 'Test Author', 'modified':", call_args
+            )
+            self.assertIn(f"in {test_file}", call_args)
 
             # Verify file was updated
             updated_post = _get_frontmatter(test_file)
@@ -217,7 +220,9 @@ Content""")
                 _update_metadata_key(post, test_file, "author", "Test Author", False)
 
             # Verify the error message contains expected information
-            self.assertIn("Unable to update key 'author':'Test Author'", str(cm.exception))
+            self.assertIn(
+                "Unable to update frontmatter metadata {'author':'Test Author'}", str(cm.exception)
+            )
             self.assertIn(str(test_file), str(cm.exception))
 
     def test_update_metadata_key_permission_error(self):
@@ -306,17 +311,24 @@ Content""")
         with patch("typer.echo") as mock_echo:
             _update_metadata_key(post, test_file, "tags", "test,example", True)
 
-            # Verify the exact format of the verbose message
+            # Verify the format of the verbose message (timestamp is dynamic, so we check parts)
             mock_echo.assert_called_once()
             call_args = mock_echo.call_args[0][0]
-            expected_message = f"Updated 'tags': 'test,example' in {test_file}"
-            self.assertEqual(call_args, expected_message)
+
+            # Check that message starts correctly and contains key components
+            self.assertTrue(
+                call_args.startswith(
+                    "Updated frontmatter metadata { 'tags': 'test,example', 'modified':"
+                )
+            )
+            self.assertIn("'modified':", call_args)
+            self.assertTrue(call_args.endswith(f"in {test_file}"))
 
     def test_display_query_results_json_format(self):
         """Test _display_query_results with JSON format."""
         import frontmatter
 
-        from obsidian_cli.main import QueryOutputStyle
+        from obsidian_cli.types import QueryOutputStyle
 
         post = frontmatter.Post("Content")
         post.metadata = {"title": "Test Title"}
@@ -335,7 +347,7 @@ Content""")
         """Test _display_query_results with TITLE format."""
         import frontmatter
 
-        from obsidian_cli.main import QueryOutputStyle
+        from obsidian_cli.types import QueryOutputStyle
 
         post = frontmatter.Post("Content")
         post.metadata = {"title": "Test Title"}
@@ -350,7 +362,7 @@ Content""")
         """Test _display_query_results with TABLE format."""
         import frontmatter
 
-        from obsidian_cli.main import QueryOutputStyle
+        from obsidian_cli.types import QueryOutputStyle
 
         post = frontmatter.Post("Content")
         post.metadata = {"title": "Test Title"}
@@ -367,7 +379,7 @@ Content""")
         """Test _display_query_results with PATH format."""
         import frontmatter
 
-        from obsidian_cli.main import QueryOutputStyle
+        from obsidian_cli.types import QueryOutputStyle
 
         post = frontmatter.Post("Content")
         post.metadata = {"title": "Test Title"}
@@ -383,7 +395,7 @@ Content""")
         """Test _display_query_results when key is missing from metadata."""
         import frontmatter
 
-        from obsidian_cli.main import QueryOutputStyle
+        from obsidian_cli.types import QueryOutputStyle
 
         post = frontmatter.Post("Content")
         post.metadata = {"test": "test"}  # Has a different key, not title

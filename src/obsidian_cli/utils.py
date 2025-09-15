@@ -13,8 +13,9 @@ from rich.markup import escape
 from rich.padding import Padding
 from rich.table import Table
 
+from . import __version__
 from .exceptions import ObsidianFileError
-from .types import State
+from .types import MCPOperation, MCPStatus, State
 
 
 def _check_filename_match(file_path: Path, search_name: str, exact_match: bool) -> bool:
@@ -69,6 +70,59 @@ def _check_title_match(post: frontmatter.Post, search_name: str) -> bool:
         title = post.metadata["title"]
         return isinstance(title, str) and search_name in title.lower()
     return False
+
+
+# MCP (Model Context Protocol) helper functions
+def _create_mcp_error_response(
+    text: str,
+    operation: MCPOperation,
+    **additional_meta: Any,
+) -> list:
+    """Create a standardized MCP error response.
+
+    Args:
+        text: Error message text
+        operation: MCP operation type
+        **additional_meta: Additional metadata fields
+
+    Returns:
+        List containing a single TextContent error response
+    """
+    return _create_mcp_response(text, operation, MCPStatus.ERROR, **additional_meta)
+
+
+def _create_mcp_response(
+    text: str,
+    operation: MCPOperation,
+    status: MCPStatus = MCPStatus.SUCCESS,
+    **additional_meta: Any,
+) -> list:
+    """Create a standardized MCP TextContent response with metadata.
+
+    Args:
+        text: Response text content
+        operation: MCP operation type
+        status: Response status
+        **additional_meta: Additional metadata fields
+
+    Returns:
+        List containing a single TextContent object with metadata
+    """
+    # Import here to avoid circular imports and handle optional MCP dependency
+    try:
+        from mcp.types import TextContent
+    except ImportError as e:
+        raise ImportError(
+            f"MCP dependencies not installed. Please install with: pip install mcp. Details: {e}"
+        ) from e
+
+    meta = {
+        "operation": operation.value,
+        "status": status.value,
+        **additional_meta,
+    }
+
+    return [TextContent(type="text", text=text, _meta=meta)]
 
 
 def _display_find_results(matches: list[Path], page_name: str, verbose: bool, vault: Path) -> None:
@@ -136,7 +190,7 @@ def _display_query_results(
     Returns:
         None: Results are printed directly to stdout.
     """
-    from .main import QueryOutputStyle  # Runtime import to avoid circular dependency
+    from .types import QueryOutputStyle  # Runtime import to avoid circular dependency
 
     if not matches:
         typer.echo("No matching files found", err=True, color="yellow")
@@ -186,64 +240,6 @@ def _display_query_results(
                 f"Unknown format type: {format_type}."
                 f" Supported types: {', '.join([e.value for e in QueryOutputStyle])}"
             )
-
-
-def _find_matching_files(vault: Path, search_name: str, exact_match: bool) -> list[Path]:
-    """Find files in the vault that match the search criteria.
-
-    Searches through all markdown files in the vault and checks if they match
-    the search criteria either by filename or frontmatter title.
-
-    Args:
-        vault: Path to the Obsidian vault.
-        search_name: The search term to look for in filenames and titles.
-        exact_match: If True, requires exact equality; if False, performs
-                     case-insensitive substring match.
-
-    Returns:
-        list[Path]: List of relative paths to files that match the search criteria.
-    """
-    matches: list[Path] = []
-
-    # Search for markdown files in the vault
-    for file_path in vault.rglob("*.md"):
-        # Get relative path from vault root
-        rel_path = file_path.relative_to(vault)
-
-        # Check for match in filename
-        if _check_filename_match(file_path, search_name, exact_match):
-            matches.append(rel_path)
-            continue
-
-        # Also check frontmatter for title field if not exact match
-        if not exact_match:
-            with suppress(Exception):
-                post = _get_frontmatter(file_path)
-                if _check_title_match(post, search_name) and rel_path not in matches:
-                    matches.append(rel_path)
-
-    return matches
-
-
-def _get_frontmatter(filename: Path) -> frontmatter.Post:
-    """Get frontmatter from a file.
-
-    Parses the given file and extracts its frontmatter and content.
-
-    Args:
-        filename: Path to the file to read.
-
-    Returns:
-        frontmatter.Post: Object containing both metadata and content.
-
-    Raises:
-        ObsidianFileError: When the file doesn't exist.
-    """
-    try:
-        return frontmatter.load(filename)
-    except FileNotFoundError:
-        typer.secho(f"Page or File '{filename}' does not exist.", err=True, fg=typer.colors.RED)
-        raise ObsidianFileError(filename, "Page or File does not exist.") from None
 
 
 def _display_vault_info(vault_info: dict[str, Any]) -> None:
@@ -335,6 +331,43 @@ def _display_vault_info(vault_info: dict[str, Any]) -> None:
     console.print()
 
 
+def _find_matching_files(vault: Path, search_name: str, exact_match: bool) -> list[Path]:
+    """Find files in the vault that match the search criteria.
+
+    Searches through all markdown files in the vault and checks if they match
+    the search criteria either by filename or frontmatter title.
+
+    Args:
+        vault: Path to the Obsidian vault.
+        search_name: The search term to look for in filenames and titles.
+        exact_match: If True, requires exact equality; if False, performs
+                     case-insensitive substring match.
+
+    Returns:
+        list[Path]: List of relative paths to files that match the search criteria.
+    """
+    matches: list[Path] = []
+
+    # Search for markdown files in the vault
+    for file_path in vault.rglob("*.md"):
+        # Get relative path from vault root
+        rel_path = file_path.relative_to(vault)
+
+        # Check for match in filename
+        if _check_filename_match(file_path, search_name, exact_match):
+            matches.append(rel_path)
+            continue
+
+        # Also check frontmatter for title field if not exact match
+        if not exact_match:
+            with suppress(Exception):
+                post = _get_frontmatter(file_path)
+                if _check_title_match(post, search_name) and rel_path not in matches:
+                    matches.append(rel_path)
+
+    return matches
+
+
 def _format_file_size(size_bytes: int) -> str:
     """Format file size in human-readable format.
 
@@ -345,6 +378,27 @@ def _format_file_size(size_bytes: int) -> str:
         Human-readable size string (e.g., "1.5 KB", "2.3 MB")
     """
     return humanize.naturalsize(size_bytes)
+
+
+def _get_frontmatter(filename: Path) -> frontmatter.Post:
+    """Get frontmatter from a file.
+
+    Parses the given file and extracts its frontmatter and content.
+
+    Args:
+        filename: Path to the file to read.
+
+    Returns:
+        frontmatter.Post: Object containing both metadata and content.
+
+    Raises:
+        ObsidianFileError: When the file doesn't exist.
+    """
+    try:
+        return frontmatter.load(filename)
+    except FileNotFoundError:
+        typer.secho(f"Page or File '{filename}' does not exist.", err=True, fg=typer.colors.RED)
+        raise ObsidianFileError(filename, "Page or File does not exist.") from None
 
 
 def _get_journal_template_vars(date: datetime) -> dict[str, str | int]:
@@ -373,8 +427,6 @@ def _get_vault_info(state: State) -> dict[str, Any]:
     Returns:
         Dictionary containing vault information
     """
-    # Import version from main module to avoid duplication
-    from .main import __version__
 
     # MCP server uses this function with state.vault as a string
     vault_path = Path(state.vault)
@@ -386,7 +438,7 @@ def _get_vault_info(state: State) -> dict[str, Any]:
             "exists": False,
         }
 
-    def _walk_vault(path: Path):
+    def __walk_vault(path: Path):
         """Recursively walks a directory and yields Path objects for directories and files,
         respecting the configured blacklist."""
         yield path
@@ -411,7 +463,7 @@ def _get_vault_info(state: State) -> dict[str, Any]:
 
             if entry.is_dir():
                 # Recursively call for subdirectories (only if not blacklisted)
-                yield from _walk_vault(entry)
+                yield from __walk_vault(entry)
             else:
                 # Yield file Path object (only if not blacklisted)
                 yield entry
@@ -419,7 +471,7 @@ def _get_vault_info(state: State) -> dict[str, Any]:
     summary: dict[str, dict[str, int]] = defaultdict(lambda: {"count": 0, "total_size": 0})
     file_type_stats: dict[str, dict[str, int]] = defaultdict(lambda: {"count": 0, "total_size": 0})
 
-    for entry in _walk_vault(vault_path):
+    for entry in __walk_vault(vault_path):
         if entry.is_dir():
             summary["directories"]["count"] += 1
             with suppress(Exception):
@@ -507,7 +559,7 @@ def _resolve_path(page_or_path: Path, vault: Path) -> Path:
     typer.secho(
         f"Page or File '{page_or_path}' not found in vault: {vault}", err=True, fg=typer.colors.RED
     )
-    raise ObsidianFileError(page_or_path, f"Page or File not found in vault: {vault}")
+    raise typer.BadParameter(f"Page or File not found in vault: {vault}", param_hint="page_or_path")
 
 
 def _update_metadata_key(
@@ -537,13 +589,17 @@ def _update_metadata_key(
             f.write(frontmatter.dumps(post))
     except FileNotFoundError as e:
         typer.secho(
-            f"Error updating file '{filename}' with key '{key}':'{value}': {e}",
+            f"Error updating file '{filename}' with frontmatter metadata "
+            f"{{'{key}': '{value}'}}: {e}",
             err=True,
             fg=typer.colors.RED,
         )
         raise ObsidianFileError(
-            filename, f"Unable to update key '{key}':'{value}' in {filename}"
+            filename, f"Unable to update frontmatter metadata {{'{key}':'{value}'}} in {filename}"
         ) from e
 
     if verbose:
-        typer.echo(f"Updated '{key}': '{value}' in {filename}")
+        typer.echo(
+            "Updated frontmatter metadata"
+            f" {{ '{key}': '{value}', 'modified': '{post['modified']}' }} in {filename}"
+        )

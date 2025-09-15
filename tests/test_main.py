@@ -20,6 +20,8 @@ class TestMain(unittest.TestCase):
         """Set up test environment."""
         self.temp_dir = TemporaryDirectory()
         self.vault_path = Path(self.temp_dir.name)
+        # Create .obsidian directory to make it a valid Obsidian vault
+        (self.vault_path / ".obsidian").mkdir()
         self.runner = CliRunner()
 
     def tearDown(self):
@@ -307,6 +309,9 @@ blacklist = ["temp/", "cache/"]
         import sys
 
         with tempfile.TemporaryDirectory() as temp_vault_dir:
+            # Create .obsidian directory to make it a valid Obsidian vault
+            (Path(temp_vault_dir) / ".obsidian").mkdir()
+
             # Run the command in a subprocess to completely isolate it
             cmd = [sys.executable, "-m", "obsidian_cli.main", "--vault", temp_vault_dir, "serve"]
 
@@ -362,7 +367,7 @@ blacklist = ["temp/", "cache/"]
             self.assertEqual(result.exit_code, 2)
 
             # Should contain the error message in output (typer.BadParameter displays it)
-            self.assertIn("Vault path is required", result.output)
+            self.assertIn("vault path is required", result.output)
 
     def test_blacklist_functionality(self):
         """Test that blacklist are properly excluded."""

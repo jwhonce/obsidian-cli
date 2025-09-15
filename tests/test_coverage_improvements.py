@@ -54,6 +54,8 @@ class TestCoverageImprovements(unittest.TestCase):
                     # Create a valid vault directory for the info command
                     vault_dir = Path(temp_dir) / "test_vault"
                     vault_dir.mkdir()
+                    # Create .obsidian directory to make it a valid Obsidian vault
+                    (vault_dir / ".obsidian").mkdir()
 
                     # Pass --verbose explicitly to enable verbose output
                     # This overrides the config's verbose=False setting
@@ -150,12 +152,12 @@ invalid_syntax ===== "broken"
                             )
 
                         # Verify the error message
-                        self.assertIn("Vault path is required", str(context.exception))
+                        self.assertIn("vault path is required", str(context.exception))
 
                         # Also test via CLI runner for integration test
                         result = self.runner.invoke(cli, ["info"])
                         self.assertEqual(result.exit_code, 2)
-                        self.assertIn("Vault path is required", result.output)
+                        self.assertIn("vault path is required", result.output)
             finally:
                 os.chdir(old_cwd)
 
@@ -215,6 +217,9 @@ invalid_syntax ===== "broken"
             try:
                 os.chdir(temp_dir)
 
+                # Create .obsidian directory to make it a valid Obsidian vault
+                (Path(temp_dir) / ".obsidian").mkdir()
+
                 # Create a config file with invalid journal template
                 config_file = Path(temp_dir) / "invalid-template-config.toml"
                 config_file.write_text(f"""
@@ -266,6 +271,8 @@ journal_template = "Journal/{{invalid_var}}/{{year}}"
         with self.runner.isolated_filesystem():
             vault = Path("test_vault").resolve()
             vault.mkdir()
+            # Create .obsidian directory to make it a valid Obsidian vault
+            (vault / ".obsidian").mkdir()
 
             # Test that OBSIDIAN_VAULT is used when --vault is not provided
             with patch.dict(os.environ, {"OBSIDIAN_VAULT": str(vault)}):
@@ -286,6 +293,8 @@ journal_template = "Journal/{{invalid_var}}/{{year}}"
         with self.runner.isolated_filesystem():
             vault = Path("test_vault").resolve()
             vault.mkdir()
+            # Create .obsidian directory to make it a valid Obsidian vault
+            (vault / ".obsidian").mkdir()
 
             config_file = Path("custom_config.toml").resolve()
             config_file.write_text(f'[obsidian-cli]\nvault = "{vault}"\n')
@@ -316,10 +325,11 @@ journal_template = "Journal/{{invalid_var}}/{{year}}"
         with self.runner.isolated_filesystem():
             vault = Path("test_vault").resolve()
             vault.mkdir()
+            # Create .obsidian directory to make it a valid Obsidian vault
+            (vault / ".obsidian").mkdir()
 
-            # Create a file that would normally be excluded
+            # Create a file that would normally be excluded (use existing .obsidian dir)
             excluded_dir = vault / ".obsidian"
-            excluded_dir.mkdir()
             excluded_file = excluded_dir / "test.md"
             excluded_file.write_text("test content")
 
@@ -342,6 +352,8 @@ journal_template = "Journal/{{invalid_var}}/{{year}}"
         with self.runner.isolated_filesystem():
             vault = Path("test_vault").resolve()
             vault.mkdir()
+            # Create .obsidian directory to make it a valid Obsidian vault
+            (vault / ".obsidian").mkdir()
 
             # Test that OBSIDIAN_VERBOSE=1 enables verbose mode
             with patch.dict(os.environ, {"OBSIDIAN_VERBOSE": "1"}):
@@ -369,6 +381,8 @@ journal_template = "Journal/{{invalid_var}}/{{year}}"
         with self.runner.isolated_filesystem():
             vault = Path("test_vault").resolve()
             vault.mkdir()
+            # Create .obsidian directory to make it a valid Obsidian vault
+            (vault / ".obsidian").mkdir()
 
             test_file = vault / "test.md"
             test_file.write_text("---\ntitle: Test\n---\nContent")
@@ -401,6 +415,8 @@ journal_template = "Journal/{{invalid_var}}/{{year}}"
         with self.runner.isolated_filesystem():
             vault = Path("test_vault").resolve()
             vault.mkdir()
+            # Create .obsidian directory to make it a valid Obsidian vault
+            (vault / ".obsidian").mkdir()
 
             config_file = Path("env_config.toml").resolve()
             config_file.write_text(f'[obsidian-cli]\nvault = "{vault}"\n')
@@ -435,6 +451,8 @@ journal_template = "Journal/{{invalid_var}}/{{year}}"
         with self.runner.isolated_filesystem():
             vault = Path("vault").resolve()
             vault.mkdir()
+            # Create .obsidian directory to make it a valid Obsidian vault
+            (vault / ".obsidian").mkdir()
 
             # Create a test file with existing UID
             test_file = vault / "test.md"
@@ -459,6 +477,8 @@ Content here
         with self.runner.isolated_filesystem():
             vault = Path("vault").resolve()
             vault.mkdir()
+            # Create .obsidian directory to make it a valid Obsidian vault
+            (vault / ".obsidian").mkdir()
 
             # Create a test file with existing UID
             test_file = vault / "test.md"
@@ -472,10 +492,10 @@ title: Test File
 
             # Test without force flag (should fail and display error)
             result = self.runner.invoke(cli, ["--vault", str(vault), "add-uid", "test"])
-            self.assertEqual(result.exit_code, 1)
+            self.assertEqual(result.exit_code, 2)  # BadParameter returns exit code 2
 
-            # Verify that the error was displayed
-            self.assertIn("Page 'test' already has UID: existing-uid-123", result.stderr)
+            # Verify that the error was displayed with new format
+            self.assertIn("Page 'test' already has {'uid': 'existing-uid-123'}", result.output)
 
     def test_add_uid_verbose_output(self):
         """Test that add-uid displays verbose message when generating new UUID."""
@@ -483,6 +503,8 @@ title: Test File
         with self.runner.isolated_filesystem():
             vault = Path("vault").resolve()
             vault.mkdir()
+            # Create .obsidian directory to make it a valid Obsidian vault
+            (vault / ".obsidian").mkdir()
 
             # Create a test file without UID
             test_file = vault / "test.md"
@@ -499,8 +521,8 @@ title: Test File
             )
             self.assertEqual(result.exit_code, 0)
 
-            # Verify that the verbose message was displayed
-            self.assertIn("Generated new UUID:", result.stdout)
+            # Verify that the verbose message was displayed with new format
+            self.assertIn("Generated new {'uid':", result.stdout)
 
     def test_add_uid_without_force_existing(self):
         """Test add-uid command without force when UID exists."""
@@ -508,6 +530,8 @@ title: Test File
         with self.runner.isolated_filesystem():
             vault = Path("vault").resolve()
             vault.mkdir()
+            # Create .obsidian directory to make it a valid Obsidian vault
+            (vault / ".obsidian").mkdir()
 
             # Create a test file with existing UID
             test_file = vault / "test.md"
@@ -520,16 +544,45 @@ Content here
 
             # Test adding UID without force
             result = self.runner.invoke(cli, ["--vault", str(vault), "add-uid", "test"])
-            self.assertEqual(result.exit_code, 1)
+            self.assertEqual(result.exit_code, 2)  # BadParameter returns exit code 2
 
-            # Verify that the error was displayed
-            self.assertIn("Page 'test' already has UID: existing-uid", result.stderr)
+            # Verify that the error was displayed with new format
+            self.assertIn("Page 'test' already has {'uid': 'existing-uid'}", result.output)
+
+    def test_add_uid_verbose_existing_uid_message(self):
+        """Test add-uid verbose message when UID exists without force."""
+        with self.runner.isolated_filesystem():
+            vault = Path("vault").resolve()
+            vault.mkdir()
+            # Create .obsidian directory to make it a valid Obsidian vault
+            (vault / ".obsidian").mkdir()
+
+            # Create a test file with existing UID
+            test_file = vault / "test.md"
+            test_file.write_text("""---
+uid: existing-uid-456
+title: Test File
+---
+
+# Test Content
+""")
+
+            # Test with verbose flag but no force (should show verbose warning)
+            result = self.runner.invoke(
+                cli, ["--vault", str(vault), "--verbose", "add-uid", "test"]
+            )
+            self.assertEqual(result.exit_code, 2)  # BadParameter returns exit code 2
+
+            # Verify that the verbose warning message was displayed
+            self.assertIn("Use --force to replace value of existing uid.", result.output)
 
     def test_cat_with_frontmatter(self):
         """Test cat command with frontmatter display."""
         with self.runner.isolated_filesystem():
             vault = Path("vault").resolve()
             vault.mkdir()
+            # Create .obsidian directory to make it a valid Obsidian vault
+            (vault / ".obsidian").mkdir()
 
             # Create a test file
             test_file = vault / "test.md"
@@ -554,6 +607,8 @@ This is the content.
         with self.runner.isolated_filesystem():
             vault = Path("vault").resolve()
             vault.mkdir()
+            # Create .obsidian directory to make it a valid Obsidian vault
+            (vault / ".obsidian").mkdir()
 
             # Create a test file
             test_file = vault / "test.md"
@@ -576,6 +631,8 @@ This is the content.
         with self.runner.isolated_filesystem():
             vault = Path("vault").resolve()
             vault.mkdir()
+            # Create .obsidian directory to make it a valid Obsidian vault
+            (vault / ".obsidian").mkdir()
 
             # Create a test file
             test_file = vault / "test.md"
@@ -618,6 +675,8 @@ This is the content.
         with self.runner.isolated_filesystem():
             vault = Path("vault").resolve()
             vault.mkdir()
+            # Create .obsidian directory to make it a valid Obsidian vault
+            (vault / ".obsidian").mkdir()
 
             # Create a test file
             test_file = vault / "test.md"
@@ -641,6 +700,8 @@ Content
         with self.runner.isolated_filesystem():
             vault = Path("vault").resolve()
             vault.mkdir()
+            # Create .obsidian directory to make it a valid Obsidian vault
+            (vault / ".obsidian").mkdir()
 
             # Create a test file
             test_file = vault / "test.md"
@@ -649,7 +710,7 @@ Content
             result = self.runner.invoke(
                 cli, ["--vault", str(vault), "--editor", "nonexistent-editor", "edit", "test"]
             )
-            self.assertEqual(result.exit_code, 2)
+            self.assertEqual(result.exit_code, 2)  # FileNotFoundError now raises BadParameter
 
             # Verify that the error was logged - the exact output may vary in test environment
             # but we can verify the exit code confirms the FileNotFoundError path was taken
@@ -662,6 +723,8 @@ Content
         with self.runner.isolated_filesystem():
             vault = Path("vault").resolve()
             vault.mkdir()
+            # Create .obsidian directory to make it a valid Obsidian vault
+            (vault / ".obsidian").mkdir()
 
             # Create a test file
             test_file = vault / "test.md"
@@ -678,6 +741,8 @@ Content
         with self.runner.isolated_filesystem():
             vault = Path("vault").resolve()
             vault.mkdir()
+            # Create .obsidian directory to make it a valid Obsidian vault
+            (vault / ".obsidian").mkdir()
 
             # Create test files
             (vault / "exact-match.md").write_text("# Exact Match")
@@ -695,6 +760,8 @@ Content
         with self.runner.isolated_filesystem():
             vault = Path("vault").resolve()
             vault.mkdir()
+            # Create .obsidian directory to make it a valid Obsidian vault
+            (vault / ".obsidian").mkdir()
 
             # Create test files
             (vault / "test-file.md").write_text("# Test")
@@ -799,15 +866,39 @@ Content
     def test_info_command_nonexistent_vault(self):
         """Test info command with nonexistent vault."""
         result = self.runner.invoke(cli, ["--vault", "/nonexistent/path", "info"])
-        self.assertEqual(result.exit_code, 1)
-        # Verify that the error was logged - the exact output may vary in test environment
-        # but we can verify the exit code confirms the vault error path was taken
+        self.assertEqual(result.exit_code, 2)  # Now returns 2 due to vault validation
+        # Verify that the error indicates the vault directory doesn't exist
+        self.assertIn("vault directory does not exist", result.output)
+
+    def test_info_command_vault_is_file(self):
+        """Test info command when vault path is a file instead of directory."""
+        with self.runner.isolated_filesystem():
+            # Create a file instead of a directory
+            vault_file = Path("vault_file.txt")
+            vault_file.write_text("This is a file, not a directory")
+
+            result = self.runner.invoke(cli, ["--vault", str(vault_file), "info"])
+            self.assertEqual(result.exit_code, 2)
+            self.assertIn("vault path must be a directory", result.output)
+
+    def test_info_command_missing_obsidian_directory(self):
+        """Test info command when vault directory exists but missing .obsidian directory."""
+        with self.runner.isolated_filesystem():
+            # Create a directory but no .obsidian subdirectory
+            vault_dir = Path("vault_no_obsidian")
+            vault_dir.mkdir()
+
+            result = self.runner.invoke(cli, ["--vault", str(vault_dir), "info"])
+            self.assertEqual(result.exit_code, 2)
+            self.assertIn("invalid Obsidian vault: missing .obsidian", result.output)
 
     def test_journal_invalid_date_format(self):
         """Test journal command with invalid date format."""
         with self.runner.isolated_filesystem():
             vault = Path("vault").resolve()
             vault.mkdir()
+            # Create .obsidian directory to make it a valid Obsidian vault
+            (vault / ".obsidian").mkdir()
 
             # Mock subprocess.run so we don't actually try to launch an editor
             with patch("subprocess.run", return_value=None):
@@ -823,6 +914,8 @@ Content
         with self.runner.isolated_filesystem():
             vault = Path("vault").resolve()
             vault.mkdir()
+            # Create .obsidian directory to make it a valid Obsidian vault
+            (vault / ".obsidian").mkdir()
 
             # Mock the edit command to raise FileNotFoundError
             with patch("obsidian_cli.main.edit", side_effect=FileNotFoundError("File not found")):
@@ -835,6 +928,8 @@ Content
         with self.runner.isolated_filesystem():
             vault = Path("vault").resolve()
             vault.mkdir()
+            # Create .obsidian directory to make it a valid Obsidian vault
+            (vault / ".obsidian").mkdir()
 
             # Mock _get_journal_template_vars to return incomplete vars to trigger KeyError
             with patch("obsidian_cli.main._get_journal_template_vars") as mock_vars:
@@ -849,6 +944,8 @@ Content
         with self.runner.isolated_filesystem():
             vault = Path("vault").resolve()
             vault.mkdir()
+            # Create .obsidian directory to make it a valid Obsidian vault
+            (vault / ".obsidian").mkdir()
 
             # Create a config with a template that will cause a formatting error
             config_file = vault / "config.toml"
@@ -868,6 +965,8 @@ journal_template = "Journal/{{year}}/{{month:02d}}/{{day:02d}}"
         with self.runner.isolated_filesystem():
             vault = Path("vault").resolve()
             vault.mkdir()
+            # Create .obsidian directory to make it a valid Obsidian vault
+            (vault / ".obsidian").mkdir()
 
             # Create the expected journal file
             today = datetime.now()
@@ -886,6 +985,8 @@ journal_template = "Journal/{{year}}/{{month:02d}}/{{day:02d}}"
         with self.runner.isolated_filesystem():
             vault = Path("vault").resolve()
             vault.mkdir()
+            # Create .obsidian directory to make it a valid Obsidian vault
+            (vault / ".obsidian").mkdir()
 
             # Create files in different directories
             (vault / "normal.md").write_text("# Normal")
@@ -905,6 +1006,8 @@ journal_template = "Journal/{{year}}/{{month:02d}}/{{day:02d}}"
         with self.runner.isolated_filesystem():
             vault = Path("vault").resolve()
             vault.mkdir()
+            # Create .obsidian directory to make it a valid Obsidian vault
+            (vault / ".obsidian").mkdir()
 
             # Create a test file
             test_file = vault / "test.md"
@@ -926,15 +1029,19 @@ Content
         with self.runner.isolated_filesystem():
             vault = Path("vault").resolve()
             vault.mkdir()
+            # Create .obsidian directory to make it a valid Obsidian vault
+            (vault / ".obsidian").mkdir()
 
             result = self.runner.invoke(cli, ["--vault", str(vault), "meta", "nonexistent"])
-            self.assertEqual(result.exit_code, 12)
+            self.assertEqual(result.exit_code, 2)  # BadParameter from _resolve_path
 
     def test_meta_update_error(self):
         """Test meta command with error during metadata update."""
         with self.runner.isolated_filesystem():
             vault = Path("vault").resolve()
             vault.mkdir()
+            # Create .obsidian directory to make it a valid Obsidian vault
+            (vault / ".obsidian").mkdir()
 
             # Create a test file
             test_file = vault / "test.md"
@@ -969,9 +1076,11 @@ Content
         with self.runner.isolated_filesystem():
             vault = Path("vault").resolve()
             vault.mkdir()
+            # Create .obsidian directory to make it a valid Obsidian vault
+            (vault / ".obsidian").mkdir()
 
             result = self.runner.invoke(cli, ["--vault", str(vault), "meta", "nonexistent"])
-            self.assertEqual(result.exit_code, 12)
+            self.assertEqual(result.exit_code, 2)  # BadParameter from _resolve_path
             # Exit code confirms the file not found error path was taken
 
     def test_meta_key_error_logging(self):
@@ -979,6 +1088,8 @@ Content
         with self.runner.isolated_filesystem():
             vault = Path("vault").resolve()
             vault.mkdir()
+            # Create .obsidian directory to make it a valid Obsidian vault
+            (vault / ".obsidian").mkdir()
 
             # Create a test file
             test_file = vault / "test.md"
@@ -999,13 +1110,15 @@ Content
         with self.runner.isolated_filesystem():
             vault = Path("vault").resolve()
             vault.mkdir()
+            # Create .obsidian directory to make it a valid Obsidian vault
+            (vault / ".obsidian").mkdir()
 
             # Create existing file
             test_file = vault / "existing.md"
             test_file.write_text("Existing content")
 
             result = self.runner.invoke(cli, ["--vault", str(vault), "new", "existing"])
-            self.assertEqual(result.exit_code, 1)
+            self.assertEqual(result.exit_code, 2)  # BadParameter returns exit code 2
             # With logging changes, we verify the exit code confirms the file
             # exists error path was taken
 
@@ -1017,6 +1130,8 @@ Content
         with self.runner.isolated_filesystem():
             vault = Path("vault").resolve()
             vault.mkdir()
+            # Create .obsidian directory to make it a valid Obsidian vault
+            (vault / ".obsidian").mkdir()
 
             # Use CliRunner's input parameter to simulate stdin
             result = self.runner.invoke(
@@ -1033,6 +1148,8 @@ Content
         with self.runner.isolated_filesystem():
             vault = Path("vault").resolve()
             vault.mkdir()
+            # Create .obsidian directory to make it a valid Obsidian vault
+            (vault / ".obsidian").mkdir()
 
             # Create existing file
             test_file = vault / "existing.md"
@@ -1050,6 +1167,8 @@ Content
         with self.runner.isolated_filesystem():
             vault = Path("vault").resolve()
             vault.mkdir()
+            # Create .obsidian directory to make it a valid Obsidian vault
+            (vault / ".obsidian").mkdir()
 
             with patch("subprocess.run", return_value=None):
                 with patch("sys.stdin.isatty", return_value=False):
@@ -1065,6 +1184,8 @@ Content
         with self.runner.isolated_filesystem():
             vault = Path("vault").resolve()
             vault.mkdir()
+            # Create .obsidian directory to make it a valid Obsidian vault
+            (vault / ".obsidian").mkdir()
 
             with patch("subprocess.run", return_value=None):
                 result = self.runner.invoke(
@@ -1082,13 +1203,15 @@ Content
         with self.runner.isolated_filesystem():
             vault = Path("vault").resolve()
             vault.mkdir()
+            # Create .obsidian directory to make it a valid Obsidian vault
+            (vault / ".obsidian").mkdir()
 
             # Create existing file
             test_file = vault / "existing.md"
             test_file.write_text("Existing content")
 
             result = self.runner.invoke(cli, ["--vault", str(vault), "new", "existing"])
-            self.assertEqual(result.exit_code, 1)
+            self.assertEqual(result.exit_code, 2)  # BadParameter returns exit code 2
             # Exit code confirms the file exists error path was taken
 
     def test_new_file_writing_error_handling(self):
@@ -1096,6 +1219,8 @@ Content
         with self.runner.isolated_filesystem():
             vault = Path("vault").resolve()
             vault.mkdir()
+            # Create .obsidian directory to make it a valid Obsidian vault
+            (vault / ".obsidian").mkdir()
 
             # Mock frontmatter.dumps to raise an exception during file writing
             with patch("frontmatter.dumps", side_effect=Exception("Frontmatter error")):
@@ -1108,6 +1233,8 @@ Content
         with self.runner.isolated_filesystem():
             vault = Path("vault").resolve()
             vault.mkdir()
+            # Create .obsidian directory to make it a valid Obsidian vault
+            (vault / ".obsidian").mkdir()
 
             # Mock Path.mkdir to raise an OSError during directory creation
             with patch("pathlib.Path.mkdir", side_effect=OSError("Permission denied")):
@@ -1123,6 +1250,8 @@ Content
         with self.runner.isolated_filesystem():
             vault = Path("vault").resolve()
             vault.mkdir()
+            # Create .obsidian directory to make it a valid Obsidian vault
+            (vault / ".obsidian").mkdir()
 
             # Mock frontmatter.Post to raise an exception during content preparation
             with patch("frontmatter.Post", side_effect=Exception("Content preparation error")):
@@ -1135,6 +1264,8 @@ Content
         with self.runner.isolated_filesystem():
             vault = Path("vault").resolve()
             vault.mkdir()
+            # Create .obsidian directory to make it a valid Obsidian vault
+            (vault / ".obsidian").mkdir()
 
             result = self.runner.invoke(
                 cli,
@@ -1149,15 +1280,16 @@ Content
                     "another",
                 ],
             )
-            self.assertEqual(result.exit_code, 1)
-            # With logging changes, we verify the exit code confirms the
-            # conflicting options error path was taken
+            self.assertEqual(result.exit_code, 2)  # BadParameter returns exit code 2
+            # Exit code confirms the conflicting parameter validation error
 
     def test_query_with_count(self):
         """Test query command with count option."""
         with self.runner.isolated_filesystem():
             vault = Path("vault").resolve()
             vault.mkdir()
+            # Create .obsidian directory to make it a valid Obsidian vault
+            (vault / ".obsidian").mkdir()
 
             # Create test files
             (vault / "test1.md").write_text("""---
@@ -1180,6 +1312,8 @@ Content""")
         with self.runner.isolated_filesystem():
             vault = Path("vault").resolve()
             vault.mkdir()
+            # Create .obsidian directory to make it a valid Obsidian vault
+            (vault / ".obsidian").mkdir()
 
             # Create test file
             (vault / "test.md").write_text("""---
@@ -1199,6 +1333,8 @@ Content""")
         with self.runner.isolated_filesystem():
             vault = Path("vault").resolve()
             vault.mkdir()
+            # Create .obsidian directory to make it a valid Obsidian vault
+            (vault / ".obsidian").mkdir()
 
             # Create test file
             (vault / "test.md").write_text("""---
@@ -1227,6 +1363,8 @@ Content""")
         with self.runner.isolated_filesystem():
             vault = Path("vault").resolve()
             vault.mkdir()
+            # Create .obsidian directory to make it a valid Obsidian vault
+            (vault / ".obsidian").mkdir()
 
             # Create files in blacklisted directory
             assets_dir = vault / "Assets"
@@ -1253,6 +1391,8 @@ Content""")
         with self.runner.isolated_filesystem():
             vault = Path("vault").resolve()
             vault.mkdir()
+            # Create .obsidian directory to make it a valid Obsidian vault
+            (vault / ".obsidian").mkdir()
 
             # Create a malformed markdown file
             (vault / "malformed.md").write_text("Invalid frontmatter without proper YAML")
@@ -1272,6 +1412,8 @@ Content""")
         with self.runner.isolated_filesystem():
             vault = Path("vault").resolve()
             vault.mkdir()
+            # Create .obsidian directory to make it a valid Obsidian vault
+            (vault / ".obsidian").mkdir()
 
             result = self.runner.invoke(
                 cli,
@@ -1286,14 +1428,16 @@ Content""")
                     "another",
                 ],
             )
-            self.assertEqual(result.exit_code, 1)
-            # Exit code confirms the conflicting options error path was taken
+            self.assertEqual(result.exit_code, 2)  # BadParameter returns exit code 2
+            # Exit code confirms the conflicting parameter validation error
 
     def test_rm_with_confirmation_no(self):
         """Test rm command with user declining confirmation."""
         with self.runner.isolated_filesystem():
             vault = Path("vault").resolve()
             vault.mkdir()
+            # Create .obsidian directory to make it a valid Obsidian vault
+            (vault / ".obsidian").mkdir()
 
             # Create test file
             test_file = vault / "test.md"
@@ -1311,6 +1455,8 @@ Content""")
         with self.runner.isolated_filesystem():
             vault = Path("vault").resolve()
             vault.mkdir()
+            # Create .obsidian directory to make it a valid Obsidian vault
+            (vault / ".obsidian").mkdir()
 
             # Create test file
             test_file = vault / "test.md"
@@ -1326,6 +1472,8 @@ Content""")
         with self.runner.isolated_filesystem():
             vault = Path("vault").resolve()
             vault.mkdir()
+            # Create .obsidian directory to make it a valid Obsidian vault
+            (vault / ".obsidian").mkdir()
 
             # Create test file
             test_file = vault / "test.md"
@@ -1344,6 +1492,8 @@ Content""")
         with self.runner.isolated_filesystem():
             vault = Path("vault").resolve()
             vault.mkdir()
+            # Create .obsidian directory to make it a valid Obsidian vault
+            (vault / ".obsidian").mkdir()
 
             # Create test file
             test_file = vault / "test.md"
@@ -1371,6 +1521,8 @@ Content""")
         with self.runner.isolated_filesystem():
             vault = Path("vault").resolve()
             vault.mkdir()
+            # Create .obsidian directory to make it a valid Obsidian vault
+            (vault / ".obsidian").mkdir()
 
             # Create test file
             test_file = vault / "test.md"
@@ -1390,13 +1542,15 @@ Content""")
         with self.runner.isolated_filesystem():
             vault = Path("vault").resolve()
             vault.mkdir()
+            # Create .obsidian directory to make it a valid Obsidian vault
+            (vault / ".obsidian").mkdir()
 
             # Try to remove non-existent file
             result = self.runner.invoke(
                 cli, ["--vault", str(vault), "rm", "nonexistent", "--force"]
             )
 
-            self.assertEqual(result.exit_code, 12)
+            self.assertEqual(result.exit_code, 2)  # BadParameter from _resolve_path
             # File not found error occurs in _resolve_path before rm logic
 
     def test_serve_mcp_dependencies_error_logging(self):
@@ -1404,6 +1558,8 @@ Content""")
         with self.runner.isolated_filesystem():
             vault = Path("vault").resolve()
             vault.mkdir()
+            # Create .obsidian directory to make it a valid Obsidian vault
+            (vault / ".obsidian").mkdir()
 
             # Mock ImportError to simulate missing MCP dependencies
             with patch("obsidian_cli.main.serve_mcp") as mock_serve_mcp:
@@ -1419,6 +1575,8 @@ Content""")
         with self.runner.isolated_filesystem():
             vault = Path("vault").resolve()
             vault.mkdir()
+            # Create .obsidian directory to make it a valid Obsidian vault
+            (vault / ".obsidian").mkdir()
 
             # Mock serve_mcp to avoid actually starting the server
             with patch("obsidian_cli.main.serve_mcp") as mock_serve_mcp:
@@ -1434,6 +1592,8 @@ Content""")
         with self.runner.isolated_filesystem():
             vault = Path("vault").resolve()
             vault.mkdir()
+            # Create .obsidian directory to make it a valid Obsidian vault
+            (vault / ".obsidian").mkdir()
 
             # Mock serve_mcp to avoid actually starting the server
             with patch("obsidian_cli.main.serve_mcp") as mock_serve_mcp:
@@ -1449,6 +1609,8 @@ Content""")
         with self.runner.isolated_filesystem():
             vault = Path("vault").resolve()
             vault.mkdir()
+            # Create .obsidian directory to make it a valid Obsidian vault
+            (vault / ".obsidian").mkdir()
 
             # Mock serve_mcp to raise KeyboardInterrupt
             with patch("obsidian_cli.main.serve_mcp") as mock_serve_mcp:
@@ -1464,6 +1626,8 @@ Content""")
         with self.runner.isolated_filesystem():
             vault = Path("vault").resolve()
             vault.mkdir()
+            # Create .obsidian directory to make it a valid Obsidian vault
+            (vault / ".obsidian").mkdir()
 
             # Mock serve_mcp to raise a general exception
             with patch("obsidian_cli.main.serve_mcp") as mock_serve_mcp:
@@ -1479,6 +1643,8 @@ Content""")
         with self.runner.isolated_filesystem():
             vault = Path("vault").resolve()
             vault.mkdir()
+            # Create .obsidian directory to make it a valid Obsidian vault
+            (vault / ".obsidian").mkdir()
 
             # Mock serve_mcp to raise CancelledError
             with patch("obsidian_cli.main.serve_mcp") as mock_serve_mcp:
@@ -1571,11 +1737,13 @@ Content""")
         with self.runner.isolated_filesystem():
             vault = Path("vault").resolve()
             vault.mkdir()
+            # Create .obsidian directory to make it a valid Obsidian vault
+            (vault / ".obsidian").mkdir()
 
             # Test any command that uses _resolve_path with non-existent file
             result = self.runner.invoke(cli, ["--vault", str(vault), "cat", "nonexistent"])
-            # _resolve_path now uses default ObsidianFileError exit_code=12
-            self.assertEqual(result.exit_code, 12)
+            # _resolve_path now uses BadParameter exit_code=2
+            self.assertEqual(result.exit_code, 2)
 
     def test_configuration_error_exit_codes(self):
         """Test that configuration errors use correct exit codes."""
@@ -1607,6 +1775,8 @@ Content""")
         with self.runner.isolated_filesystem():
             vault = Path("vault").resolve()
             vault.mkdir()
+            # Create .obsidian directory to make it a valid Obsidian vault
+            (vault / ".obsidian").mkdir()
 
             # Test various commands that use _resolve_path
             commands_to_test = [
@@ -1619,9 +1789,9 @@ Content""")
             for cmd in commands_to_test:
                 with self.subTest(command=cmd):
                     result = self.runner.invoke(cli, ["--vault", str(vault)] + cmd)
-                    # All should return exit_code=12 (default ObsidianFileError)
+                    # All should return exit_code=2 (BadParameter from _resolve_path)
                     self.assertEqual(
-                        result.exit_code, 12, f"Command {cmd} should return exit code 12"
+                        result.exit_code, 2, f"Command {cmd} should return exit code 2"
                     )
 
     def test_obsidian_file_error_default_behavior(self):
