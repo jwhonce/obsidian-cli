@@ -17,7 +17,7 @@ from obsidian_cli.mcp_server import (
     handle_get_vault_info,
     serve_mcp,
 )
-from obsidian_cli.types import State
+from obsidian_cli.types import Vault
 
 
 class TestMCPServerComprehensive(unittest.TestCase):
@@ -31,18 +31,18 @@ class TestMCPServerComprehensive(unittest.TestCase):
         # Create .obsidian directory to make it a valid Obsidian vault
         (self.vault_path / ".obsidian").mkdir()
 
-        self.state = State(
+        self.vault = Vault(
             editor=Path("vi"),
             ident_key="uid",
             blacklist=["Assets/", ".obsidian/"],
             config_dirs=["test.toml"],
             journal_template="Calendar/{year}/{month:02d}/{year}-{month:02d}-{day:02d}",
-            vault=self.vault_path,
+            path=self.vault_path,
             verbose=False,
         )
 
         self.ctx = MagicMock(spec=typer.Context)
-        self.ctx.obj = self.state
+        self.ctx.obj = self.vault
 
     def tearDown(self):
         """Clean up test fixtures."""
@@ -71,7 +71,7 @@ class TestMCPServerComprehensive(unittest.TestCase):
 
             with patch("obsidian_cli.main.new") as mock_new:
                 mock_new.return_value = None
-                result = await handle_create_note(self.ctx, self.state, args)
+                result = await handle_create_note(self.ctx, self.vault, args)
 
                 self.assertEqual(len(result), 1)
                 self.assertIn("Successfully created note", result[0].text)
@@ -87,7 +87,7 @@ class TestMCPServerComprehensive(unittest.TestCase):
 
             with patch("obsidian_cli.main.new") as mock_new:
                 mock_new.return_value = None
-                result = await handle_create_note(self.ctx, self.state, args)
+                result = await handle_create_note(self.ctx, self.vault, args)
 
                 self.assertEqual(len(result), 1)
                 self.assertIn("Successfully created note", result[0].text)
@@ -107,7 +107,7 @@ class TestMCPServerComprehensive(unittest.TestCase):
 
             with patch("obsidian_cli.main.new") as mock_new:
                 mock_new.side_effect = typer.Exit(code=1)
-                result = await handle_create_note(self.ctx, self.state, args)
+                result = await handle_create_note(self.ctx, self.vault, args)
 
                 self.assertEqual(len(result), 1)
                 self.assertIn("already exists", result[0].text)
@@ -123,7 +123,7 @@ class TestMCPServerComprehensive(unittest.TestCase):
 
             with patch("obsidian_cli.main.new") as mock_new:
                 mock_new.side_effect = typer.Exit(code=2)
-                result = await handle_create_note(self.ctx, self.state, args)
+                result = await handle_create_note(self.ctx, self.vault, args)
 
                 self.assertEqual(len(result), 1)
                 self.assertIn("Command exited with code 2", result[0].text)
@@ -138,7 +138,7 @@ class TestMCPServerComprehensive(unittest.TestCase):
 
             with patch("obsidian_cli.main.new") as mock_new:
                 mock_new.side_effect = Exception("Test error")
-                result = await handle_create_note(self.ctx, self.state, args)
+                result = await handle_create_note(self.ctx, self.vault, args)
 
                 self.assertEqual(len(result), 1)
                 self.assertIn("Failed to create note", result[0].text)
@@ -156,7 +156,7 @@ class TestMCPServerComprehensive(unittest.TestCase):
             (self.vault_path / "test-file.md").write_text("# Test")
             (self.vault_path / "another-test.md").write_text("# Another")
 
-            result = await handle_find_notes(self.ctx, self.state, args)
+            result = await handle_find_notes(self.ctx, self.vault, args)
 
             self.assertEqual(len(result), 1)
             self.assertIn("Found 2 file(s)", result[0].text)
@@ -171,7 +171,7 @@ class TestMCPServerComprehensive(unittest.TestCase):
         async def run_test():
             args = {"term": "nonexistent", "exact": True}
 
-            result = await handle_find_notes(self.ctx, self.state, args)
+            result = await handle_find_notes(self.ctx, self.vault, args)
 
             self.assertEqual(len(result), 1)
             self.assertIn("No files found matching", result[0].text)
@@ -186,7 +186,7 @@ class TestMCPServerComprehensive(unittest.TestCase):
 
             with patch("obsidian_cli.main._find_matching_files") as mock_find:
                 mock_find.side_effect = Exception("Find error")
-                result = await handle_find_notes(self.ctx, self.state, args)
+                result = await handle_find_notes(self.ctx, self.vault, args)
 
                 self.assertEqual(len(result), 1)
                 self.assertIn("Error finding notes", result[0].text)
@@ -213,7 +213,7 @@ This is the content.""")
                     print("This is the content.")
 
                 mock_cat.side_effect = mock_cat_func
-                result = await handle_get_note_content(self.ctx, self.state, args)
+                result = await handle_get_note_content(self.ctx, self.vault, args)
 
                 self.assertEqual(len(result), 1)
                 self.assertIn("This is the content.", result[0].text)
@@ -228,7 +228,7 @@ This is the content.""")
 
             with patch("obsidian_cli.main.cat") as mock_cat:
                 mock_cat.side_effect = typer.Exit(code=2)
-                result = await handle_get_note_content(self.ctx, self.state, args)
+                result = await handle_get_note_content(self.ctx, self.vault, args)
 
                 self.assertEqual(len(result), 1)
                 self.assertIn("File not found", result[0].text)
@@ -243,7 +243,7 @@ This is the content.""")
 
             with patch("obsidian_cli.main.cat") as mock_cat:
                 mock_cat.side_effect = typer.Exit(code=1)
-                result = await handle_get_note_content(self.ctx, self.state, args)
+                result = await handle_get_note_content(self.ctx, self.vault, args)
 
                 self.assertEqual(len(result), 1)
                 self.assertIn("Error reading note: exit code 1", result[0].text)
@@ -258,7 +258,7 @@ This is the content.""")
 
             with patch("obsidian_cli.main.cat") as mock_cat:
                 mock_cat.side_effect = Exception("Read error")
-                result = await handle_get_note_content(self.ctx, self.state, args)
+                result = await handle_get_note_content(self.ctx, self.vault, args)
 
                 self.assertEqual(len(result), 1)
                 self.assertIn("Error reading note", result[0].text)
@@ -279,7 +279,7 @@ This is the content.""")
             (self.vault_path / "config.json").write_text('{"key": "value"}')
             (self.vault_path / "image.png").write_bytes(b"fake image data")
 
-            result = await handle_get_vault_info(self.ctx, self.state, args)
+            result = await handle_get_vault_info(self.ctx, self.vault, args)
 
             self.assertEqual(len(result), 1)
             self.assertIn("Obsidian Vault Information", result[0].text)
@@ -308,17 +308,17 @@ This is the content.""")
             args = {}
 
             # Create state with nonexistent vault
-            bad_state = State(
+            bad_vault = Vault(
                 editor=Path("vi"),
                 ident_key="uid",
                 blacklist=[],
                 config_dirs=["test.toml"],
                 journal_template="test",
-                vault=Path("/nonexistent/path"),
+                path=Path("/nonexistent/path"),
                 verbose=False,
             )
 
-            result = await handle_get_vault_info(self.ctx, bad_state, args)
+            result = await handle_get_vault_info(self.ctx, bad_vault, args)
 
             self.assertEqual(len(result), 1)
             self.assertIn("Vault not found", result[0].text)
@@ -333,7 +333,7 @@ This is the content.""")
 
             with patch("obsidian_cli.mcp_server._get_vault_info") as mock_info:
                 mock_info.side_effect = Exception("Info error")
-                result = await handle_get_vault_info(self.ctx, self.state, args)
+                result = await handle_get_vault_info(self.ctx, self.vault, args)
 
                 self.assertEqual(len(result), 1)
                 self.assertIn("Error retrieving vault information", result[0].text)
@@ -348,7 +348,7 @@ This is the content.""")
         # run indefinitely, so we just verify the function signature and structure
         self.assertTrue(callable(serve_mcp))
         self.assertTrue(hasattr(serve_mcp, "__code__"))
-        self.assertEqual(serve_mcp.__code__.co_argcount, 2)  # ctx, state
+        self.assertEqual(serve_mcp.__code__.co_argcount, 2)  # ctx, vault
 
         # Verify it's an async function
         import asyncio
@@ -370,7 +370,7 @@ This is the content.""")
                 mock_find.side_effect = Exception("Test error in tool")
 
                 # The handler catches the exception and returns an error message
-                result = await handle_find_notes(self.ctx, self.state, {"term": "test"})
+                result = await handle_find_notes(self.ctx, self.vault, {"term": "test"})
 
                 # Verify the result contains error message
                 self.assertEqual(len(result), 1)

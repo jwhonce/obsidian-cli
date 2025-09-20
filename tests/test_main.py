@@ -10,7 +10,7 @@ import frontmatter
 from typer.testing import CliRunner
 
 from obsidian_cli.main import _check_if_path_blacklisted, cli
-from obsidian_cli.types import Configuration, State
+from obsidian_cli.types import Configuration, Vault
 
 
 class TestMain(unittest.TestCase):
@@ -127,24 +127,24 @@ blacklist = ["temp/", "cache/"]
             finally:
                 os.chdir(old_cwd)
 
-    def test_state_class_creation(self):
-        """Test State class creation and attributes."""
-        state = State(
+    def test_vault_class_creation(self):
+        """Test Vault class creation and attributes."""
+        vault = Vault(
             editor=Path("vi"),
             ident_key="id",
             blacklist=["test/"],
             config_dirs=["test.toml"],
             journal_template="Journal/{year}-{month:02d}-{day:02d}",
-            vault=self.vault_path,
+            path=self.vault_path,
             verbose=True,
         )
 
-        self.assertEqual(state.editor, Path("vi"))
-        self.assertEqual(state.ident_key, "id")
-        self.assertEqual(state.blacklist, ["test/"])
-        self.assertEqual(state.journal_template, "Journal/{year}-{month:02d}-{day:02d}")
-        self.assertEqual(state.vault, self.vault_path)
-        self.assertTrue(state.verbose)
+        self.assertEqual(vault.editor, Path("vi"))
+        self.assertEqual(vault.ident_key, "id")
+        self.assertEqual(vault.blacklist, ["test/"])
+        self.assertEqual(vault.journal_template, "Journal/{year}-{month:02d}-{day:02d}")
+        self.assertEqual(vault.path, self.vault_path)
+        self.assertTrue(vault.verbose)
 
     def test_add_uid_command_basic(self):
         """Test add-uid command with basic functionality."""
@@ -461,12 +461,12 @@ blacklist = ["temp/", "cache/"]
 
         self.assertEqual(result.exit_code, 0)
 
-    # Test helper function to create State objects with correct parameters
-    def create_test_state(tmp_path, **overrides):
-        """Create a State object for testing with correct parameter names."""
+    # Test helper function to create Vault objects with correct parameters
+    def create_test_vault(tmp_path, **overrides):
+        """Create a Vault object for testing with correct parameter names."""
         from pathlib import Path
 
-        from obsidian_cli.types import State
+        from obsidian_cli.types import Vault
 
         defaults = {
             "editor": Path("vi"),
@@ -477,7 +477,7 @@ blacklist = ["temp/", "cache/"]
             "verbose": False,
         }
         defaults.update(overrides)
-        return State(**defaults)
+        return Vault(**defaults)
 
     def test_check_if_path_blacklisted(self):
         """Test the _check_if_path_blacklisted function with various patterns."""
@@ -501,7 +501,7 @@ blacklist = ["temp/", "cache/"]
 
     def test_blacklist_functionality_comprehensive(self):
         """Comprehensive test to verify blacklist functionality works correctly."""
-        from obsidian_cli.types import Configuration, State
+        from obsidian_cli.types import Configuration, Vault
 
         # Test blacklist function
         blacklist = ["Assets/", ".obsidian/", ".git/"]
@@ -512,21 +512,21 @@ blacklist = ["temp/", "cache/"]
         config = Configuration(blacklist=["temp/", "archive/"])
         self.assertEqual(config.blacklist, ["temp/", "archive/"])
 
-        # Test State with blacklist
+        # Test Vault with blacklist
         with tempfile.TemporaryDirectory() as tmp_dir:
             tmp_path = Path(tmp_dir)
-            state = State(
+            vault = Vault(
                 editor=Path("vi"),
                 ident_key="uid",
                 blacklist=["Assets/", ".obsidian/", ".git/"],
                 config_dirs=["test.toml"],
                 journal_template="Calendar/{year}/{month:02d}/{year}-{month:02d}-{day:02d}",
-                vault=tmp_path,
+                path=tmp_path,
                 verbose=False,
             )
-            self.assertEqual(state.blacklist, ["Assets/", ".obsidian/", ".git/"])
-            self.assertTrue(hasattr(state, "blacklist"))
-            self.assertFalse(hasattr(state, "ignored_directories"))
+            self.assertEqual(vault.blacklist, ["Assets/", ".obsidian/", ".git/"])
+            self.assertTrue(hasattr(vault, "blacklist"))
+            self.assertFalse(hasattr(vault, "ignored_directories"))
 
     def test_configuration_backward_compatibility(self):
         """Test that old 'ignored_directories' config still works."""

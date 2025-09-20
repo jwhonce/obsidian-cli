@@ -4,46 +4,46 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from obsidian_cli.types import State
+from obsidian_cli.types import Vault
 
 
 class TestMCPServerComponents(unittest.TestCase):
-    """Test MCP server components with correct State parameters."""
+    """Test MCP server components with correct Vault parameters."""
 
-    def test_state_creation_with_blacklist(self):
-        """Test that State objects can be created with blacklist parameter."""
+    def test_vault_creation_with_blacklist(self):
+        """Test that Vault objects can be created with blacklist parameter."""
         with tempfile.TemporaryDirectory() as tmp_dir:
             tmp_path = Path(tmp_dir)
-            state = State(
+            vault = Vault(
                 editor=Path("vi"),
                 ident_key="uid",
                 blacklist=["Assets/", ".obsidian/", ".git/"],
                 config_dirs=["test.toml"],
                 journal_template="Calendar/{year}/{month:02d}/{year}-{month:02d}-{day:02d}",
-                vault=tmp_path,
+                path=tmp_path,
                 verbose=False,
             )
-            self.assertEqual(state.blacklist, ["Assets/", ".obsidian/", ".git/"])
-            self.assertEqual(state.ident_key, "uid")
-            self.assertEqual(state.vault, tmp_path)
+            self.assertEqual(vault.blacklist, ["Assets/", ".obsidian/", ".git/"])
+            self.assertEqual(vault.ident_key, "uid")
+            self.assertEqual(vault.path, tmp_path)
 
-    def test_state_blacklist_attribute_access(self):
+    def test_vault_blacklist_attribute_access(self):
         """Test that blacklist attribute can be accessed properly."""
         with tempfile.TemporaryDirectory() as tmp_dir:
             tmp_path = Path(tmp_dir)
-            state = State(
+            vault = Vault(
                 editor=Path("vi"),
                 ident_key="uid",
                 blacklist=["temp/", "draft/"],
                 config_dirs=["test.toml"],
                 journal_template="test/{year}-{month:02d}-{day:02d}",
-                vault=tmp_path,
+                path=tmp_path,
                 verbose=False,
             )
             # This was the failing line - should now work with blacklist
-            self.assertIsInstance(state.blacklist, list)
-            self.assertIn("temp/", state.blacklist)
-            self.assertIn("draft/", state.blacklist)
+            self.assertIsInstance(vault.blacklist, list)
+            self.assertIn("temp/", vault.blacklist)
+            self.assertIn("draft/", vault.blacklist)
 
 
 if __name__ == "__main__":

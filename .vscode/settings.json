@@ -59,12 +59,24 @@
         "EEXIST",
         "ENOENT",
         "frontmatter",
+        "htmlcov",
         "levelno",
         "mdutils",
+        "mkdocs",
         "naturalsize",
+        "pycache",
         "pyproject",
+        "pytest",
+        "PYTHONPATH",
         "secho",
         "signum",
-        "tomllib"
-    ]
+        "tomllib",
+        "venv"
+    ],
+    "cursorpyright.analysis.autoImportCompletions": true,
+    "cursorpyright.analysis.extraPaths": [
+        "${workspaceFolder}/src"
+    ],
+    "makefile.configureOnOpen": false,
+    "python.languageServer": "None"
 }

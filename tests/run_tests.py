@@ -46,7 +46,7 @@ def validate_imports():
     try:
         from obsidian_cli.exceptions import ObsidianFileError
         from obsidian_cli.main import cli, main
-        from obsidian_cli.types import Configuration, State
+        from obsidian_cli.types import Configuration, Vault
         from obsidian_cli.utils import _get_vault_info
 
         print("✓ All imports successful")

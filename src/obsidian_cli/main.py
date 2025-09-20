@@ -106,7 +106,7 @@ from mdutils.mdutils import MdUtils  # type: ignore[import-untyped]
 
 from .exceptions import ObsidianFileError
 from .mcp_server import serve_mcp
-from .types import PAGE_FILE, Configuration, QueryOutputStyle, State
+from .types import PAGE_FILE, Configuration, QueryOutputStyle, Vault
 from .utils import (
     _check_if_path_blacklisted,
     _display_find_results,
@@ -303,14 +303,14 @@ def main(
         typer.secho(f"Invalid journal_template: {journal_template}", err=True, fg=typer.colors.RED)
         raise typer.Exit(code=1) from None
 
-    # Create the application state
-    ctx.obj = State(
+    # Create the vault object
+    ctx.obj = Vault(
         blacklist=blacklist_dirs_list,
         config_dirs=configuration.config_dirs,
         editor=editor,
         ident_key=configuration.ident_key,
         journal_template=journal_template,
-        vault=vault,
+        path=vault,
         verbose=verbose,
     )
 
@@ -325,15 +325,15 @@ def add_uid(
     force: Annotated[bool, typer.Option(help="if set, overwrite existing uid")] = False,
 ) -> None:
     """Add a unique ID to a page's frontmatter if it doesn't already have one."""
-    state: State = ctx.obj
-    filename = _resolve_path(page_or_path, state.vault)
+    vault: Vault = ctx.obj
+    filename = _resolve_path(page_or_path, vault.path)
     post = _get_frontmatter(filename)
 
     # Check if UID already exists (outside try block since this is intentional control flow)
-    if state.ident_key in post.metadata and not force:
-        if state.verbose:
+    if vault.ident_key in post.metadata and not force:
+        if vault.verbose:
             typer.secho(
-                f"Use --force to replace value of existing {state.ident_key}.",
+                f"Use --force to replace value of existing {vault.ident_key}.",
                 err=True,
                 fg=typer.colors.YELLOW,
             )
@@ -341,22 +341,22 @@ def add_uid(
         raise typer.BadParameter(
             (
                 f"Page '{page_or_path}' already has"
-                f" {{'{state.ident_key}': '{post.metadata[state.ident_key]}'}}"
+                f" {{'{vault.ident_key}': '{post.metadata[vault.ident_key]}'}}"
             ),
             ctx=ctx,
             param_hint="force",
         )
 
     new_uuid = str(uuid.uuid4())
-    if state.verbose:
-        typer.echo(f"Generated new {{'{state.ident_key}': '{new_uuid}'}}")
+    if vault.verbose:
+        typer.echo(f"Generated new {{'{vault.ident_key}': '{new_uuid}'}}")
 
     # Update frontmatter with the new UUID
     ctx.invoke(
         meta,
         ctx=ctx,
         page_or_path=page_or_path,
-        key=state.ident_key,
+        key=vault.ident_key,
         value=new_uuid,
     )
 
@@ -370,8 +370,8 @@ def cat(
     ] = False,
 ) -> None:
     """Display the contents of a file in the Obsidian Vault."""
-    state: State = ctx.obj
-    filename = _resolve_path(page_or_path, state.vault)
+    vault: Vault = ctx.obj
+    filename = _resolve_path(page_or_path, vault.path)
 
     if show_frontmatter:
         # Simply read and display the entire file
@@ -396,8 +396,8 @@ def cat(
 @cli.command()
 def edit(ctx: typer.Context, page_or_path: PAGE_FILE) -> None:
     """Edit any file in the Obsidian Vault with the configured editor."""
-    state: State = ctx.obj
-    filename = _resolve_path(page_or_path, state.vault)
+    vault: Vault = ctx.obj
+    filename = _resolve_path(page_or_path, vault.path)
 
     # Note: typer.launch() is designed for opening URLs/files with default applications,
     # not for running specific commands with custom editors. For this use case, we need
@@ -407,25 +407,25 @@ def edit(ctx: typer.Context, page_or_path: PAGE_FILE) -> None:
         import subprocess
 
         # Open the file in the configured editor
-        subprocess.run([str(state.editor), str(filename)], check=True)
+        subprocess.run([str(vault.editor), str(filename)], check=True)
 
     except FileNotFoundError as e:
         raise typer.BadParameter(
-            f"command '{state.editor}' not found. "
-            f" Ensure '{state.editor}' is installed and in your PATH={os.environ['PATH']}.",
+            f"command '{vault.editor}' not found. "
+            f" Ensure '{vault.editor}' is installed and in your PATH={os.environ['PATH']}.",
             ctx=ctx,
             param_hint="--editor",
         ) from e
     except subprocess.CalledProcessError as e:
         typer.secho(
-            f"Editor '{state.editor}' exited with code {e.returncode} while editing {filename}",
+            f"Editor '{vault.editor}' exited with code {e.returncode} while editing {filename}",
             err=True,
             fg=typer.colors.RED,
         )
         raise typer.Exit(code=1) from None
     except Exception as e:
         typer.secho(
-            f"Error launching editor '{state.editor}' while editing {filename}: {e}",
+            f"Error launching editor '{vault.editor}' while editing {filename}: {e}",
             err=True,
             fg=typer.colors.RED,
         )
@@ -448,18 +448,18 @@ def find(
     ] = False,
 ) -> None:
     """Find files in the vault that match the given page name."""
-    state: State = ctx.obj
+    vault: Vault = ctx.obj
 
-    if state.verbose:
+    if vault.verbose:
         typer.echo(f"Searching for page: '{page_name}'")
         typer.echo(f"Exact match: {exact_match}")
 
     # Normalize search name
     search_name = page_name if exact_match else page_name.lower()
 
-    matches = _find_matching_files(state.vault, search_name, exact_match)
+    matches = _find_matching_files(vault.path, search_name, exact_match)
     if matches:
-        _display_find_results(matches, page_name, state.verbose, state.vault)
+        _display_find_results(matches, page_name, vault.verbose, vault.path)
         return
 
     typer.secho(f"No files found matching '{page_name}'", err=True, fg=typer.colors.YELLOW)
@@ -468,9 +468,9 @@ def find(
 @cli.command()
 def info(ctx: typer.Context) -> None:
     """Display information about the current Obsidian Vault and configuration."""
-    state: State = ctx.obj
+    vault: Vault = ctx.obj
 
-    vault_info = _get_vault_info(state)
+    vault_info = _get_vault_info(vault)
     if not vault_info["exists"]:
         typer.secho(
             f"Error getting vault info: {vault_info['error']}", err=True, fg=typer.colors.RED
@@ -493,7 +493,7 @@ def journal(
     ] = None,
 ) -> None:
     """Open a journal entry in the Obsidian Vault."""
-    state: State = ctx.obj
+    vault: Vault = ctx.obj
 
     # If --date is provided, open that date's entry (YYYY-MM-DD). Otherwise, open today's entry.
     if date is None:
@@ -509,7 +509,7 @@ def journal(
     # Build template variables from target date
     template_vars = _get_journal_template_vars(dt)
     try:
-        journal_path_str = state.journal_template.format(**template_vars)
+        journal_path_str = vault.journal_template.format(**template_vars)
         page_path = Path(journal_path_str).with_suffix(".md")
     except KeyError as e:
         typer.secho(
@@ -520,9 +520,9 @@ def journal(
         typer.secho(f"Error formatting journal template: {e}", err=True, fg=typer.colors.RED)
         raise typer.Exit(code=1) from None
 
-    if state.verbose:
+    if vault.verbose:
         typer.echo(
-            f"Using journal template: {state.journal_template}\nResolved journal path: {page_path}",
+            f"Using journal template: {vault.journal_template}\nResolved journal path: {page_path}",
         )
 
     ctx.invoke(edit, ctx=ctx, page_or_path=page_path)
@@ -531,15 +531,15 @@ def journal(
 @cli.command()
 def ls(ctx: typer.Context) -> None:
     """List white-listed pages in the vault."""
-    state: State = ctx.obj
+    vault: Vault = ctx.obj
 
     # Find all markdown files in the vault
-    for file_path in sorted(state.vault.rglob("*.md")):
+    for file_path in sorted(vault.path.rglob("*.md")):
         # Get relative path from vault root
-        rel_path = file_path.relative_to(state.vault)
+        rel_path = file_path.relative_to(vault.path)
 
         # Skip files in blacklisted directories
-        if _check_if_path_blacklisted(rel_path, state.blacklist):
+        if _check_if_path_blacklisted(rel_path, vault.blacklist):
             continue
 
         typer.echo(rel_path)
@@ -565,9 +565,9 @@ def meta(
     ] = None,
 ) -> None:
     """View or update frontmatter metadata in a file."""
-    state: State = ctx.obj
+    vault: Vault = ctx.obj
 
-    filename = _resolve_path(page_or_path, state.vault)
+    filename = _resolve_path(page_or_path, vault.path)
     post = _get_frontmatter(filename)
 
     try:
@@ -577,7 +577,7 @@ def meta(
         elif value is None:
             _display_metadata_key(post, key)
         else:
-            _update_metadata_key(post, filename, key, value, state.verbose)
+            _update_metadata_key(post, filename, key, value, vault.verbose)
     except KeyError:
         typer.secho(
             f"Frontmatter metadata '{key}' not found in '{page_or_path}'",
@@ -601,10 +601,10 @@ def new(
     force: Annotated[bool, typer.Option(help="Overwrite existing file with new contents")] = False,
 ) -> None:
     """Create a new file in the Obsidian Vault."""
-    state: State = ctx.obj
+    vault: Vault = ctx.obj
 
     # We don't use _resolve_path() here since we expect the file to not exist
-    filename = state.vault / page_or_path.with_suffix(".md")
+    filename = vault.path / page_or_path.with_suffix(".md")
     is_overwrite = filename.exists()
     if is_overwrite:
         if not force:
@@ -612,7 +612,7 @@ def new(
                 f"File already exists: {filename}", ctx=ctx, param_hint="page_or_path"
             )
 
-        if state.verbose:
+        if vault.verbose:
             typer.echo(f"Overwriting existing file: {filename}")
 
     # Create parent directories if they don't exist
@@ -634,7 +634,7 @@ def new(
             content = sys.stdin.read().strip()
             post = frontmatter.Post(content)
 
-            if state.verbose:
+            if vault.verbose:
                 typer.echo("Using content from stdin")
         else:
             md_file = MdUtils(file_name=str(filename), title=title, title_header_style="atx")
@@ -648,7 +648,7 @@ def new(
     post["created"] = created_time
     post["modified"] = created_time
     post["title"] = title
-    post[state.ident_key] = str(uuid.uuid4())
+    post[vault.ident_key] = str(uuid.uuid4())
 
     try:
         with open(filename, "w", encoding="utf-8") as f:
@@ -661,7 +661,7 @@ def new(
     if sys.stdin.isatty():
         ctx.invoke(edit, ctx=ctx, page_or_path=page_or_path)
 
-    if state.verbose:
+    if vault.verbose:
         action = "Overwriting existing" if is_overwrite else "Created new"
         typer.echo(f"{action} file: {filename}")
 
@@ -701,7 +701,7 @@ def query(
     ] = False,
 ) -> None:
     """Query frontmatter across all files in the vault."""
-    state: State = ctx.obj
+    vault: Vault = ctx.obj
 
     # Check for conflicting options
     if value is not None and contains is not None:
@@ -710,7 +710,7 @@ def query(
             ctx=ctx,
         )
 
-    if state.verbose:
+    if vault.verbose:
         typer.echo(f"Searching for frontmatter key: {key}")
         if value is not None:
             typer.echo(f"Filtering for exact value: {value}")
@@ -723,10 +723,10 @@ def query(
 
     # Find all markdown files in the vault
     matches = []
-    for file_path in state.vault.rglob("*.md"):
+    for file_path in vault.path.rglob("*.md"):
         # Get relative path from vault root
         try:
-            rel_path = file_path.relative_to(state.vault)
+            rel_path = file_path.relative_to(vault.path)
         except ValueError as e:
             typer.secho(
                 f"Could not resolve relative path for {file_path}: {e}",
@@ -736,8 +736,8 @@ def query(
             continue
 
         # Skip files in blacklisted directories
-        if _check_if_path_blacklisted(rel_path, state.blacklist):
-            if state.verbose:
+        if _check_if_path_blacklisted(rel_path, vault.blacklist):
+            if vault.verbose:
                 typer.echo(f"Skipping excluded file: {rel_path}")
             continue
 
@@ -790,8 +790,8 @@ def rm(
     force: Annotated[bool, typer.Option(help="Skip confirmation prompt")] = False,
 ) -> None:
     """Remove a file from the Obsidian Vault."""
-    state: State = ctx.obj
-    filename = _resolve_path(page_or_path, state.vault)
+    vault: Vault = ctx.obj
+    filename = _resolve_path(page_or_path, vault.path)
 
     if not force and not typer.confirm(f"Are you sure you want to delete '{filename}'?"):
         typer.echo("Operation cancelled.")
@@ -803,7 +803,7 @@ def rm(
         typer.secho(f"Error removing file: {e}", err=True, fg=typer.colors.RED)
         raise typer.Exit(code=1) from None
 
-    if state.verbose:
+    if vault.verbose:
         typer.echo(f"File removed: {filename}")
 
 
@@ -820,15 +820,15 @@ def serve(ctx: typer.Context) -> None:
     #
     # The server will run indefinitely until interrupted (Ctrl+C).
 
-    state: State = ctx.obj
+    vault: Vault = ctx.obj
 
-    if state.verbose:
-        typer.echo(f"Starting MCP server for vault: {state.vault}")
+    if vault.verbose:
+        typer.echo(f"Starting MCP server for vault: {vault.path}")
         typer.echo("Server will run until interrupted (Ctrl+C)")
 
     # Set up signal handling to suppress stack traces
     def signal_handler(signum, frame):
-        if state.verbose:
+        if vault.verbose:
             typer.echo("MCP server stopped.")
         sys.exit(0)
 
@@ -837,9 +837,9 @@ def serve(ctx: typer.Context) -> None:
 
     try:
         # Run the MCP server
-        asyncio.run(serve_mcp(ctx, state))
+        asyncio.run(serve_mcp(ctx, vault))
     except (KeyboardInterrupt, CancelledError):
-        if state.verbose:
+        if vault.verbose:
             typer.echo("MCP server stopped.")
         # Ensure output is flushed before exiting
         sys.stdout.flush()
@@ -848,7 +848,7 @@ def serve(ctx: typer.Context) -> None:
         return
     except Exception as e:
         typer.secho(f"Error starting MCP server: {e}", err=True, fg=typer.colors.RED)
-        if state.verbose:
+        if vault.verbose:
             typer.echo(f"Traceback: {traceback.format_exc()}")
         raise typer.Exit(1) from None
 

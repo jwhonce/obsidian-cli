@@ -15,7 +15,7 @@ from rich.table import Table
 
 from . import __version__
 from .exceptions import ObsidianFileError
-from .types import MCPOperation, MCPStatus, State
+from .types import MCPOperation, MCPStatus, Vault
 
 
 def _check_filename_match(file_path: Path, search_name: str, exact_match: bool) -> bool:
@@ -418,18 +418,18 @@ def _get_journal_template_vars(date: datetime) -> dict[str, str | int]:
     }
 
 
-def _get_vault_info(state: State) -> dict[str, Any]:
+def _get_vault_info(vault: Vault) -> dict[str, Any]:
     """Get vault information as structured data.
 
     Args:
-        state: State object containing vault configuration
+        vault: Vault object containing vault configuration
 
     Returns:
         Dictionary containing vault information
     """
 
-    # MCP server uses this function with state.vault as a string
-    vault_path = Path(state.vault)
+    # MCP server uses this function with vault.path as a string
+    vault_path = Path(vault.path)
 
     if not vault_path.exists():
         return {
@@ -449,12 +449,12 @@ def _get_vault_info(state: State) -> dict[str, Any]:
 
             # Check if this path or any parent path is blacklisted
             # For directories, also check if the directory itself matches a blacklist pattern
-            is_blacklisted = _check_if_path_blacklisted(rel_path, state.blacklist)
+            is_blacklisted = _check_if_path_blacklisted(rel_path, vault.blacklist)
             if not is_blacklisted and entry.is_dir():
                 # For directories, also check if adding a trailing slash matches any pattern
                 dir_path_with_slash = str(rel_path) + "/"
                 is_blacklisted = any(
-                    dir_path_with_slash.startswith(pattern) for pattern in state.blacklist
+                    dir_path_with_slash.startswith(pattern) for pattern in vault.blacklist
                 )
 
             # Skip blacklisted paths
@@ -489,16 +489,16 @@ def _get_vault_info(state: State) -> dict[str, Any]:
 
     # Get journal template information
     template_vars = _get_journal_template_vars(datetime.now())
-    journal_path_str = state.journal_template.format(**template_vars)
+    journal_path_str = vault.journal_template.format(**template_vars)
 
     return {
-        "blacklist": ":".join(state.blacklist),
-        "config_dirs": ":".join(state.config_dirs),
-        "editor": state.editor,
+        "blacklist": ":".join(vault.blacklist),
+        "config_dirs": ":".join(vault.config_dirs),
+        "editor": vault.editor,
         "exists": True,
         "file_type_stats": file_type_stats,
         "journal_path": journal_path_str,
-        "journal_template": state.journal_template,
+        "journal_template": vault.journal_template,
         "markdown_files": file_type_stats.get("md", {}).get(
             "count", 0
         ),  # Keep for backward compatibility
@@ -507,7 +507,7 @@ def _get_vault_info(state: State) -> dict[str, Any]:
         "usage_directories": summary["directories"]["total_size"],
         "usage_files": summary["files"]["total_size"],
         "vault_path": str(vault_path),
-        "verbose": state.verbose,
+        "verbose": vault.verbose,
         "version": __version__,
     }
 

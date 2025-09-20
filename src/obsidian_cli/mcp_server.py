@@ -15,7 +15,7 @@ from unittest.mock import patch
 import typer
 
 from . import __version__
-from .types import MCPOperation, State
+from .types import MCPOperation, Vault
 from .utils import (
     _create_mcp_error_response,
     _create_mcp_response,
@@ -34,12 +34,12 @@ except ImportError as e:
     ) from e
 
 
-async def serve_mcp(ctx: typer.Context, state: State) -> None:
+async def serve_mcp(ctx: typer.Context, vault: Vault) -> None:
     """Start the MCP server with the given configuration.
 
     Args:
         ctx: Typer context for accessing CLI functionality
-        state: State object containing vault configuration
+        vault: Vault object containing vault configuration
     """
     # Create MCP server
     server = Server("obsidian-vault")
@@ -114,13 +114,13 @@ async def serve_mcp(ctx: typer.Context, state: State) -> None:
         try:
             match name:
                 case "create_note":
-                    return await handle_create_note(ctx, state, arguments)
+                    return await handle_create_note(ctx, vault, arguments)
                 case "find_notes":
-                    return await handle_find_notes(ctx, state, arguments)
+                    return await handle_find_notes(ctx, vault, arguments)
                 case "get_note_content":
-                    return await handle_get_note_content(ctx, state, arguments)
+                    return await handle_get_note_content(ctx, vault, arguments)
                 case "get_vault_info":
-                    return await handle_get_vault_info(ctx, state, arguments)
+                    return await handle_get_vault_info(ctx, vault, arguments)
                 case _:
                     return [TextContent(type="text", text=f"Unknown tool: {name}")]
         except Exception as e:
@@ -137,7 +137,7 @@ async def serve_mcp(ctx: typer.Context, state: State) -> None:
         await server.run(read_stream, write_stream, init_options)
 
 
-async def handle_create_note(ctx: typer.Context, state: State, args: dict[str, Any]) -> list:
+async def handle_create_note(ctx: typer.Context, vault: Vault, args: dict[str, Any]) -> list:
     """Create a new note in the vault."""
     filename = args["filename"]
     content = args.get("content", "")
@@ -197,7 +197,7 @@ async def handle_create_note(ctx: typer.Context, state: State, args: dict[str, A
         )
 
 
-async def handle_find_notes(ctx: typer.Context, state: State, args: dict[str, Any]) -> list:
+async def handle_find_notes(ctx: typer.Context, vault: Vault, args: dict[str, Any]) -> list:
     """Find notes by name or title."""
     term = args["term"]
     exact = args.get("exact", False)
@@ -206,7 +206,7 @@ async def handle_find_notes(ctx: typer.Context, state: State, args: dict[str, An
         # Import inside function to avoid circular import (main.py imports serve_mcp)
         from .main import _find_matching_files
 
-        vault_path = Path(state.vault)
+        vault_path = Path(vault.path)
         matches = _find_matching_files(vault_path, term, exact)
 
         if not matches:
@@ -231,7 +231,7 @@ async def handle_find_notes(ctx: typer.Context, state: State, args: dict[str, An
         )
 
 
-async def handle_get_note_content(ctx: typer.Context, state: State, args: dict[str, Any]) -> list:
+async def handle_get_note_content(ctx: typer.Context, vault: Vault, args: dict[str, Any]) -> list:
     """Get the content of a specific note."""
     filename = args["filename"]
     show_frontmatter = args.get("show_frontmatter", False)
@@ -285,11 +285,11 @@ async def handle_get_note_content(ctx: typer.Context, state: State, args: dict[s
         )
 
 
-async def handle_get_vault_info(ctx: typer.Context, state: State, args: dict[str, Any]) -> list:
+async def handle_get_vault_info(ctx: typer.Context, vault: Vault, args: dict[str, Any]) -> list:
     """Get information about the vault."""
 
     try:
-        vault_info = _get_vault_info(state)
+        vault_info = _get_vault_info(vault)
         if vault_info.get("error"):
             return _create_mcp_error_response(vault_info["error"], MCPOperation.GET_VAULT_INFO)
     except Exception as e:

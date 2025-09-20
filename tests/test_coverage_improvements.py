@@ -17,7 +17,7 @@ from typer.testing import CliRunner
 
 from obsidian_cli.exceptions import ObsidianFileError
 from obsidian_cli.main import cli, main
-from obsidian_cli.types import Configuration, State
+from obsidian_cli.types import Configuration, Vault
 from obsidian_cli.utils import _get_vault_info
 
 
@@ -774,17 +774,17 @@ Content
 
     def test_get_vault_info_nonexistent_vault(self):
         """Test _get_vault_info with nonexistent vault."""
-        state = State(
+        vault = Vault(
             editor=Path("vi"),
             ident_key="uid",
             blacklist=[],
             config_dirs=["test.toml"],
             journal_template="test",
-            vault=Path("/nonexistent/path"),
+            path=Path("/nonexistent/path"),
             verbose=False,
         )
 
-        info = _get_vault_info(state)
+        info = _get_vault_info(vault)
         self.assertFalse(info["exists"])
         self.assertIn("error", info)
 
@@ -807,17 +807,17 @@ Content
             (subdir / "another.md").write_text("# Another")
             (subdir / "script.py").write_text("print('hello')")
 
-            state = State(
+            vault = Vault(
                 editor=Path("vi"),
                 ident_key="uid",
                 blacklist=[],
                 config_dirs=["test.toml"],
                 journal_template="test",
-                vault=vault,
+                path=vault,
                 verbose=False,
             )
 
-            info = _get_vault_info(state)
+            info = _get_vault_info(vault)
 
             # Verify the function succeeded
             self.assertTrue(info["exists"])

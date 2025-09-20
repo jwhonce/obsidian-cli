@@ -239,13 +239,13 @@ class QueryOutputStyle(StrEnum):
 
 
 @dataclass(frozen=True)
-class State:
-    """Record running state for obsidian-cli application."""
+class Vault:
+    """Running state of an Obsidian vault for obsidian-cli application."""
 
     blacklist: list[str]
     config_dirs: list[str]
     editor: Path
     ident_key: str
     journal_template: str
-    vault: Path
+    path: Path
     verbose: bool

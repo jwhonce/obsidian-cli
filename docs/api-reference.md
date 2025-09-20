@@ -7,8 +7,8 @@ This document provides detailed API reference for the Obsidian CLI project.
 The Obsidian CLI codebase is organized into the following modules:
 
 - **`configuration.py`** - Configuration class and TOML file handling
-- **`exceptions.py`** - Project-specific exception classes 
-- **`main.py`** - CLI commands, State class, and main application logic
+- **`exceptions.py`** - Project-specific exception classes
+- **`main.py`** - CLI commands, Vault class, and main application logic
 - **`mcp_server.py`** - Model Context Protocol server functionality with metadata-enhanced responses
 - **`utils.py`** - Utility functions for file operations, display, and vault management
 
@@ -80,6 +80,7 @@ Immutable configuration class for obsidian-cli application settings.
 Load configuration from TOML file.
 
 **Returns:**
+
 - `Tuple[bool, Configuration]`: (True if config was read from file, False if using defaults, Configuration instance)
 
 **Parameters**:
@@ -300,13 +301,13 @@ Get template variables for journal path formatting.
 
 ### System Information
 
-#### `_get_vault_info(state: "State") -> dict[str, Any]`
+#### `_get_vault_info(vault: "Vault") -> dict[str, Any]`
 
 Get comprehensive vault information as structured data.
 
 **Parameters**:
 
-- `state` (State): Application state with vault configuration
+- `vault` (Vault): Application vault object with configuration
 
 **Returns**: Dictionary with vault information:
 
@@ -342,9 +343,11 @@ All responses include these standard fields:
 #### create_note Metadata
 
 **Success Response:**
+
 - `filename` (str): Created filename with .md extension
 
 **Error Response:**
+
 - `filename` (str): Attempted filename
 - `exit_code` (str): Typer exit code when available
 
@@ -466,4 +469,4 @@ VaultInfo = dict[str, Any]
 - **Modular design**: Functionality separated into specialized modules
 - **Clean imports**: Configuration and exceptions in separate modules prevent circular dependencies
 - **TYPE_CHECKING**: Used to avoid runtime import cycles for type hints
-- **State object**: Passed between functions for configuration access
+- **Vault object**: Passed between functions for configuration access

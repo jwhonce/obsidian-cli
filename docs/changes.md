@@ -5,6 +5,7 @@ This document lists the significant recent changes to obsidian-cli.
 ## Version 0.1.21
 
 ### Changed
+
 - Bumped version to 0.1.21 after completing metadata enhancements and documentation updates
 
 ---
@@ -12,6 +13,7 @@ This document lists the significant recent changes to obsidian-cli.
 ## Version 0.1.20
 
 ### Added
+
 - **Rich Response Metadata for MCP Server**: All MCP tool responses now include structured metadata in the `_meta` field
   - Common fields: `operation`, `status` for all responses
   - Operation-specific fields: `filename`, `term`, `exact`, `result_count`, `show_frontmatter`, `exit_code`
@@ -21,6 +23,7 @@ This document lists the significant recent changes to obsidian-cli.
 - Added tests to verify OBSIDIAN_* environment variables work correctly for all CLI options
 
 ### Enhanced
+
 - **MCP Client Integration**: Improved error handling and operation tracking capabilities
   - Clients can now access structured operation details programmatically
   - Better error recovery with exit codes and status information
@@ -31,14 +34,16 @@ This document lists the significant recent changes to obsidian-cli.
   - Enhanced troubleshooting guidance with metadata-aware examples
 
 ### Fixed  
+
 - Fixed failing tests after _display_find_results() cleanup
 - Fixed test imports to use new types.py structure
 - Fixed AttributeError in MCP server exception handling for string filename operations
 - Fixed Exception object exit_code access in error handlers
 
 ### Changed
+
 - Cleaned up _display_find_results() function for better maintainability
-- Updated all test files to import Configuration and State from types.py
+- Updated all test files to import Configuration and Vault from types.py
 - Enhanced MCP server responses with consistent metadata structure across all operations
 
 ---

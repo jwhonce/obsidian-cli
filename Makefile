@@ -21,20 +21,14 @@ help:
 	@echo "  install-deps: Install dependencies from requirements.txt"
 	@echo "  install:     Install the package from built distribution"
 	@echo "  publish:     Publish the package to PyPI"
-	@echo "  release:     Complete release workflow (version+test+lint+docs+build+publish)"
+	@echo "  release:     Complete release workflow (version+test+lint+build+publish)"
 	@echo "  test:        Run all tests"
-	@echo "  test-simple: Run simple verification tests"
-	@echo "  test-pytest: Run pytest-based tests only"
 	@echo "  unittest:    Run only unit tests"
 	@echo "  coverage:    Run comprehensive test suite with 75%+ coverage validation"
 	@echo "  coverage-quick: Generate coverage report without enforcing threshold"
-	@echo "  verify-rename: Verify ignored_directories → blacklist rename"
 	@echo "  lint:        Check code style with Ruff"
 	@echo "  format:      Format and lint code using Ruff"
 	@echo "  serve:       Start MCP server for development testing"
-	@echo "  docs:        Generate documentation using MkDocs"
-	@echo "  docs-serve:  Serve documentation locally"
-	@echo "  outdated:    Check for outdated dependencies"
 	@echo "  venv:        Create virtual environment if it doesn't exist"
 
 # Make sure venv exists
@@ -184,65 +178,11 @@ serve: venv
 		python -m obsidian_cli.main serve --verbose
 	@echo "MCP server stopped."
 
-# Generate documentation
-docs: venv
-	@echo "Generating documentation..."
-	@. venv/bin/activate && \
-		pip install mkdocs mkdocs-material && \
-		mkdocs build
-	@echo "Documentation generated in site/ directory."
 
-# Serve documentation locally
-docs-serve: venv
-	@echo "Serving documentation locally..."
-	@. venv/bin/activate && \
-		pip install mkdocs mkdocs-material && \
-		mkdocs serve
-	@echo "Documentation server stopped."
 
-# Check for outdated dependencies
-outdated: venv
-	@echo "Checking for outdated dependencies..."
-	@. venv/bin/activate && \
-		pip install pip-outdated && \
-		pip-outdated
-	@echo "Dependency check completed."
-
-# Alternative test targets for different approaches
-test-simple: venv
-	@echo "🧪 Running simple obsidian-cli tests..."
-	@. venv/bin/activate && \
-		PYTHONPATH=src python test_makefile_compat.py
-
-test-pytest: venv
-	@echo "🧪 Running pytest-based tests..."
-	@. venv/bin/activate && \
-		pip install pytest && \
-		PYTHONPATH=src pytest tests/ -v
-
-# Debug target to check environment setup
-debug: venv dev
-	@echo "🔍 Debug information:"
-	@echo "Python version:"
-	@. venv/bin/activate && python --version
-	@echo "Installed packages:"
-	@. venv/bin/activate && pip list | grep -E "(obsidian|pytest)"
-	@echo "Python path:"
-	@. venv/bin/activate && python -c "import sys; print('\n'.join(sys.path))"
-	@echo "Can import obsidian_cli:"
-	@. venv/bin/activate && python -c "import obsidian_cli.main; print('✅ Import successful')" || echo "❌ Import failed"
-	@echo "Test files found:"
-	@find tests/ -name "*.py" -type f
-
-# Verify the ignored_directories -> blacklist rename is complete
-verify-rename: venv
-	@echo "🔍 Verifying ignored_directories → blacklist rename..."
-	@. venv/bin/activate && \
-		PYTHONPATH=src python test_makefile_compat.py
-	@echo "✅ Rename verification complete"
 
 # Complete release workflow (requires VERSION argument)
-release: test format docs clean build publish
+release: test format clean build publish
 	@echo "Release $(VERSION) completed!"
 	@echo "Remember to:"
 	@echo "- Create a git tag: git tag -a v$(VERSION) -m 'Release $(VERSION)'"

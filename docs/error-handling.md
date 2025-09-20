@@ -141,7 +141,7 @@ def _resolve_path(page_or_path: Path, vault: Path) -> Path:
 ### Command-Level Error Handling
 
 ```python
-def some_command(page_name: str, state: State):
+def some_command(page_name: str, vault: Vault):
     try:
         resolved_path = _resolve_path(Path(page_name), state.vault)
         # Command logic here

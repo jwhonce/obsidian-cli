@@ -7,10 +7,12 @@ instructions for contributing to the project.
 
 1. Fork the repository on GitHub
 2. Clone your fork locally
+
    ```bash
    git clone https://github.com/your-username/obsidian-cli.git
    cd obsidian-cli
    ```
+
 3. Set up the development environment using the Makefile (recommended)
 
    ```bash
@@ -38,7 +40,7 @@ obsidian-cli/
 │       ├── __init__.py
 │       ├── configuration.py    # Configuration class and TOML loading
 │       ├── exceptions.py       # Custom exception classes
-│       ├── main.py            # CLI commands and State management
+│       ├── main.py            # CLI commands and Vault management
 │       ├── mcp_server.py      # MCP server functionality
 │       └── utils.py           # Utility functions
 ├── tests/              # Test files
@@ -51,7 +53,7 @@ obsidian-cli/
 
 The functionality is distributed across multiple modules:
 
-- **`main.py`**: CLI commands and State management
+- **`main.py`**: CLI commands and Vault management
 - **`configuration.py`**: Configuration class with TOML file loading and validation
 - **`exceptions.py`**: Project-specific exception classes (ObsidianFileError)
 - **`utils.py`**: Utility functions for file operations, display, and vault management
