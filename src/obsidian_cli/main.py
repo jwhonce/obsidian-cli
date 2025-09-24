@@ -29,6 +29,7 @@ Example usage:
         query tags --exists
     $ obsidian-cli --vault /path/to/vault find "Daily Note" --exact
     $ obsidian-cli --vault /path/to/vault journal
+    $ obsidian-cli --vault /path/to/vault rename old-note new-note --link
     $ obsidian-cli --vault /path/to/vault rm --force unwanted-note
     $ OBSIDIAN_BLACKLIST="Templates/:Archive/" obsidian-cli --vault /path/to/vault \
         query tags --exists
@@ -44,6 +45,7 @@ Commands:
     meta        View or update frontmatter metadata
     new         Create a new file in the vault
     query       Query frontmatter across all files
+    rename      Rename a file in the vault and optionally update wiki links
     rm          Remove a file from the vault
     serve       Start an MCP (Model Context Protocol) server
 
@@ -120,6 +122,7 @@ from .utils import (
     _list_all_metadata,
     _resolve_path,
     _update_metadata_key,
+    _update_wiki_links,
 )
 
 # Get version from package metadata or fallback
@@ -781,6 +784,55 @@ def query(
         typer.echo(f"Found {len(matches)} matching files")
     else:
         _display_query_results(matches, style, key)
+
+
+@cli.command()
+def rename(
+    ctx: typer.Context,
+    page_or_path: PAGE_FILE,
+    new_name: Annotated[str, typer.Argument(help="New name for the file (without .md extension)")],
+    link: Annotated[
+        bool,
+        typer.Option(help="Update wiki links throughout the vault to point to the new file name"),
+    ] = False,
+    force: Annotated[bool, typer.Option(help="Skip confirmation prompt")] = False,
+) -> None:
+    """Rename a file in the Obsidian Vault and optionally update wiki links."""
+    vault: Vault = ctx.obj
+    old_filename = _resolve_path(page_or_path, vault.path)
+
+    # Create new filename with .md extension
+    new_filename = old_filename.parent / Path(new_name).with_suffix(".md")
+
+    # Check if new file already exists
+    if new_filename.exists() and not force:
+        raise typer.BadParameter(
+            f"File already exists: {new_filename}. Use --force to overwrite.",
+            ctx=ctx,
+            param_hint="new_name",
+        )
+
+    # Get the old page name for link updates
+    old_page_name = old_filename.stem
+
+    if not force and not typer.confirm(f"Rename '{old_filename}' to '{new_filename}'?"):
+        typer.echo("Operation cancelled.")
+        return
+
+    try:
+        # Rename the file
+        old_filename.rename(new_filename)
+
+        if vault.verbose:
+            typer.echo(f"File renamed: {old_filename} -> {new_filename}")
+
+        # Update wiki links if requested
+        if link:
+            _update_wiki_links(vault, old_page_name, new_name)
+
+    except Exception as e:
+        typer.secho(f"Error renaming file: {e}", err=True, fg=typer.colors.RED)
+        raise typer.Exit(code=1) from None
 
 
 @cli.command()

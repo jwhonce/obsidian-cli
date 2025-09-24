@@ -302,6 +302,40 @@ blacklist = ["temp/", "cache/"]
         self.assertEqual(result.exit_code, 0)
         self.assertFalse(test_file.exists())
 
+    def test_rename_command_basic(self):
+        """Test rename command basic functionality."""
+        test_file = self.create_test_file("old_note", "Test content")
+
+        result = self.run_cli_command(["rename", "old_note", "new_note", "--force"])
+
+        self.assertEqual(result.exit_code, 0)
+        self.assertFalse(test_file.exists())
+        self.assertTrue((self.vault_path / "new_note.md").exists())
+
+    def test_rename_command_with_link_update(self):
+        """Test rename command with wiki link updates."""
+        # Create a file with wiki links
+        test_file = self.create_test_file(
+            "old_note", "This links to [[old_note]] and [[old_note|display text]]"
+        )
+
+        # Create another file that references the old note
+        other_file = self.create_test_file("other_note", "See [[old_note]] for details")
+
+        result = self.run_cli_command(["rename", "old_note", "new_note", "--link", "--force"])
+
+        self.assertEqual(result.exit_code, 0)
+        self.assertFalse(test_file.exists())
+        self.assertTrue((self.vault_path / "new_note.md").exists())
+
+        # Check that wiki links were updated
+        new_file_content = (self.vault_path / "new_note.md").read_text()
+        other_file_content = (self.vault_path / "other_note.md").read_text()
+
+        self.assertIn("[[new_note]]", new_file_content)
+        self.assertIn("[[new_note|display text]]", new_file_content)
+        self.assertIn("[[new_note]]", other_file_content)
+
     def test_serve_command_behavior(self):
         """Test serve command behavior (handles both MCP installed and not installed cases)."""
         # Use subprocess isolation to avoid async/file handle issues

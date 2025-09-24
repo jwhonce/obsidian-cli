@@ -603,3 +603,76 @@ def _update_metadata_key(
             "Updated frontmatter metadata"
             f" {{ '{key}': '{value}', 'modified': '{post['modified']}' }} in {filename}"
         )
+
+
+def _update_wiki_links(vault: Vault, old_page_name: str, new_page_name: str) -> None:
+    """Update wiki links throughout the vault to point to a new page name.
+
+    Searches all markdown files in the vault for wiki links ([[page_name]]) that
+    reference the old page name and updates them to reference the new page name.
+
+    Args:
+        vault: Vault object containing vault configuration and path.
+        old_page_name: The original page name to replace.
+        new_page_name: The new page name to replace with.
+
+    Returns:
+        None: Files are updated directly, and a summary is printed.
+    """
+    import re
+
+    # Pattern to match wiki links: [[page_name]] or [[page_name|display_text]]
+    wiki_link_pattern = re.compile(r"\[\[(" + re.escape(old_page_name) + r")(\|[^\]]*)?\]\]")
+
+    updated_files = []
+    total_replacements = 0
+
+    # Search through all markdown files in the vault
+    for file_path in vault.path.rglob("*.md"):
+        # Get relative path from vault root
+        try:
+            rel_path = file_path.relative_to(vault.path)
+        except ValueError:
+            continue
+
+        # Skip files in blacklisted directories
+        if _check_if_path_blacklisted(rel_path, vault.blacklist):
+            continue
+
+        try:
+            # Read the file content
+            content = file_path.read_text(encoding="utf-8")
+
+            # Find all matches
+            matches = list(wiki_link_pattern.finditer(content))
+            if not matches:
+                continue
+
+            # Replace wiki links
+            new_content = wiki_link_pattern.sub(r"[[" + new_page_name + r"\2]]", content)
+
+            # Write back to file if changes were made
+            if new_content != content:
+                file_path.write_text(new_content, encoding="utf-8")
+                updated_files.append(rel_path)
+                total_replacements += len(matches)
+
+                if vault.verbose:
+                    typer.echo(f"Updated {len(matches)} wiki link(s) in {rel_path}")
+
+        except Exception as e:
+            typer.secho(
+                f"Error updating wiki links in {rel_path}: {e}", err=True, fg=typer.colors.YELLOW
+            )
+            continue
+
+    # Print summary
+    if updated_files:
+        typer.echo(
+            f"Updated wiki links in {len(updated_files)} file(s): {total_replacements} total replacements"
+        )
+        if vault.verbose:
+            for file_path in updated_files:
+                typer.echo(f"  - {file_path}")
+    else:
+        typer.echo("No wiki links found to update")
